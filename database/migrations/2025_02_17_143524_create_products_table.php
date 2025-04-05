@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('photo')->nullable();
             $table->text('description')->nullable();
             $table->enum('type', ['Напиток', 'Еда']);
-            $table->integer('count')->default(0);
+            $table->integer('count')->default(0)->nullable();
             $table->foreignIdFor(Category::class);
             $table->foreignIdFor(Size::class)->nullable();
             $table->foreignIdFor(KPFC::class)->nullable();
