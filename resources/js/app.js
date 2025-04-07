@@ -3,16 +3,25 @@ import { createInertiaApp } from '@inertiajs/inertia-vue3'
 import { InertiaProgress } from '@inertiajs/progress'
 
 createInertiaApp({
-  resolve: name => {
-      const pages = import.meta.glob('./Pages/**/*.vue', { eager: true });
-      return pages[`./Pages/${name}.vue`];
-  },
-  setup({ el, App, props, plugin }) {
-      createApp({ render: () => h(App, props) })
-          .use(plugin)
-          .mount(el);
-  },
+    resolve: name => {
+        // Убедитесь, что путь здесь правильный относительно ЭТОГО файла
+        // Если app.js в resources/js, а Pages в resources/js/Pages, то './Pages/' верно
+        // Если Pages в корне проекта, путь может быть '../Pages/' или '../../Pages/'
+        const pages = import.meta.glob('./Pages/**/*.vue', { eager: true }); // <-- ПРОВЕРЬТЕ ЭТОТ ПУТЬ!
+        const page = pages[`./Pages/${name}.vue`]; // <-- И ЭТОТ ПУТЬ!
+        if (!page) {
+            throw new Error(`Vue page not found: ${name}. Path checked: ./Pages/${name}.vue`);
+        }
+        // Если используете Layout по умолчанию:
+        // page.default.layout = page.default.layout || import('./Layouts/DefaultLayout.vue')
+        return page;
+    },
+    setup({ el, App, props, plugin }) {
+        createApp({ render: () => h(App, props) })
+            .use(plugin)
+            // .use(ZiggyVue, Ziggy) // Если используете Ziggy для роутов Laravel
+            .mount(el);
+    },
 });
-
 
 InertiaProgress.init()
