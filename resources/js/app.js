@@ -2,6 +2,10 @@ import { createApp, h } from 'vue'
 import { createInertiaApp } from '@inertiajs/inertia-vue3'
 import { InertiaProgress } from '@inertiajs/progress'
 
+// --- Импортируйте Ziggy и плагин ZiggyVue ---
+import { ZiggyVue } from 'ziggy-js';
+import '../css/app.css';
+
 createInertiaApp({
     resolve: name => {
         // Убедитесь, что путь здесь правильный относительно ЭТОГО файла
@@ -19,9 +23,12 @@ createInertiaApp({
     setup({ el, App, props, plugin }) {
         createApp({ render: () => h(App, props) })
             .use(plugin)
-            // .use(ZiggyVue, Ziggy) // Если используете Ziggy для роутов Laravel
+            .use(ZiggyVue, Ziggy) // Если используете Ziggy для роутов Laravel
             .mount(el);
     },
 });
 
-InertiaProgress.init()
+InertiaProgress.init({
+    color: '#4B5563',
+    showSpinner: true,
+});

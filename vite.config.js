@@ -4,6 +4,9 @@ import vue from '@vitejs/plugin-vue';
 import tailwindcss from '@tailwindcss/vite'; // <--- Импортируйте плагин Tailwind v4
 
 export default defineConfig({
+    server: {
+    host:true,
+    },
     plugins: [
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.js'], // <--- Убедитесь, что ваш CSS включен здесь
