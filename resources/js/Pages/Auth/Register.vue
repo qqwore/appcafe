@@ -3,11 +3,11 @@
         <!-- Логотип -->
         <div class="mb-8">
             <!-- Замените на ваш реальный логотип (img, svg) -->
-            <Link :href="route('home')" v-if="routes.includes('home')"> <!-- Ссылка на главную, если есть -->
+            <a :href="route('home')" v-if="routes.includes('home')"> <!-- Ссылка на главную, если есть -->
                 <h1 class="text-3xl font-bold text-center">
                     <span class="text-stone-700">Интеллект</span><span class="text-emerald-500">Ум</span>
                 </h1>
-            </Link>
+            </a>
             <h1 class="text-3xl font-bold text-center" v-else> <!-- Просто текст, если нет роута 'home' -->
                 <span class="text-stone-700">Интеллект</span><span class="text-emerald-500">Ум</span>
             </h1>
@@ -41,13 +41,13 @@
                     </label>
                     <!-- Тип 'tel' для семантики и мобильных клавиатур -->
                     <input type="tel"
-                    placeholder="Введите ваш номер телефона"
-                    id="phone"
-                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2
+                           placeholder="Введите ваш номер телефона"
+                           id="phone"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2
                     focus:ring-emerald-300 focus:border-transparent transition duration-150 ease-in-out"
-                    v-model="form.phone"
-                    required
-                    autocomplete="tel">
+                           v-model="form.phone"
+                           required
+                           autocomplete="tel">
                     <div v-if="form.errors.phone" class="text-red-500 text-xs mt-1">{{ form.errors.phone }}</div>
                 </div>
 
@@ -113,7 +113,7 @@
                 <div class="text-center text-sm text-gray-600">
                     Уже зарегистрированы?
                     <a :href="route('login')"
-                          class="font-medium text-emerald-600 hover:text-emerald-500 hover:underline">
+                       class="font-medium text-emerald-600 hover:text-emerald-500 hover:underline">
                         Войдите
                     </a>
                 </div>
@@ -123,13 +123,14 @@
 </template>
 
 <script>
-import {useForm, Link} from '@inertiajs/vue3'; // Импортируем useForm и Link
+import {useForm} from '@inertiajs/vue3';
+import {route} from "ziggy-js";
 
 export default {
     name: 'Register',
 
     components: {
-        Link, // Регистрируем компонент Link
+
     },
 
     data() {
@@ -150,15 +151,14 @@ export default {
         submit() {
             // Отправляем POST-запрос на маршрут 'register'
             // Убедитесь, что маршрут POST /register существует в routes/web.php
-            // и указывает на RegisteredUserController@store (или аналогичный)
             this.form.post(route('register'), {
                 onFinish: () => {
-                    // Сбрасываем поля пароля после попытки
+                    // Сбрасываем поля пароля после попытки (успешной или нет)
                     this.form.reset('password', 'password_confirmation');
                 },
             });
         },
-        // Проверяем, какие роуты доступны из Ziggy
+// Проверяем, какие роуты доступны из Ziggy
         checkRoutes() {
             if (typeof route !== 'undefined' && typeof Ziggy !== 'undefined' && Ziggy.routes) {
                 this.routes = Object.keys(Ziggy.routes);
@@ -170,8 +170,8 @@ export default {
         this.checkRoutes(); // Проверяем роуты при монтировании
     }
 
-    // Если нужен Layout (например, гостевой)
-    // layout: import('@/Layouts/GuestLayout.vue').then(m => m.default)
+// Если нужен Layout (например, гостевой)
+// layout: import('@/Layouts/GuestLayout.vue').then(m => m.default)
 }
 </script>
 

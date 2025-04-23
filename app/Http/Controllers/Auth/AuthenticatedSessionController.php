@@ -40,7 +40,7 @@ class AuthenticatedSessionController extends Controller
     {
         // 1. Валидация данных (можно вынести в Form Request)
         $credentials = $request->validate([
-            'email' => ['required', 'string', 'email'],
+            'phone' => ['required', 'string', 'max:20'], // <-- Валидация телефона
             'password' => ['required', 'string'],
         ]);
 
@@ -52,7 +52,7 @@ class AuthenticatedSessionController extends Controller
             throw ValidationException::withMessages([
                 // Ключ 'email' используется, чтобы ошибка отобразилась под полем email,
                 // но можно использовать и общий ключ, например 'credentials'
-                'email' => __('auth.failed'), // Используем строку из lang/en/auth.php
+                'phone' => __('auth.failed'), // Используем строку из lang/en/auth.php
             ]);
         }
 
@@ -63,7 +63,7 @@ class AuthenticatedSessionController extends Controller
         // redirect()->intended() попытается перенаправить на страницу,
         // которую пользователь хотел посетить до редиректа на логин,
         // или на указанный URL по умолчанию (например, '/dashboard')
-        return redirect()->intended('/dashboard'); // <-- Замените '/dashboard' на ваш URL после логина
+        return redirect()->intended('/Home'); // <-- Замените '/dashboard' на ваш URL после логина
     }
 
     /**

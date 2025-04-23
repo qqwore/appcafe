@@ -5,9 +5,9 @@
         <!-- Логотип -->
         <div class="mb-8">
             <!-- Замените на ваш реальный логотип (img, svg) -->
-            <h1 class="text-3xl font-bold text-center">
+            <a href="/" class="text-3xl font-bold text-center">
                 <span class="text-stone-700">Интеллект</span><span class="text-emerald-500">Ум</span>
-            </h1>
+            </a>
         </div>
 
         <!-- Форма входа -->
@@ -74,7 +74,7 @@
 </template>
 
 <script>
-import {useForm} from '@inertiajs/vue3'; // Убедитесь, что используете правильный импорт
+import {useForm} from '@inertiajs/vue3';
 // import { Link } from '@inertiajs/vue3'; // Раскомментируйте, если используете <Link>
 
 export default {

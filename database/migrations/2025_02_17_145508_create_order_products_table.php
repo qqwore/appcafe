@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use App\Models\Order;
 use App\Models\Product;
-use App\Models\Extra;
+use App\Models\Extras;
 
 return new class extends Migration
 {
@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreignIdFor(Order::class);
             $table->foreignIdFor(Product::class);
             $table->integer('count');
-            $table->foreignIdFor(Extra::class)->nullable();
+            $table->foreignIdFor(Extras::class)->nullable();
             $table->timestamps();
         });
     }

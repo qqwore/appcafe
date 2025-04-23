@@ -37,7 +37,7 @@ class RegisteredUserController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request,): RedirectResponse
     {
         // 1. Валидация входящих данных
         $request->validate([
@@ -66,6 +66,6 @@ class RegisteredUserController extends Controller
         // 5. Редирект на страницу после успешной регистрации
         // По умолчанию редиректим на RouteServiceProvider::HOME (обычно '/dashboard')
         // Вы можете изменить это на любой другой маршрут, например, redirect()->route('dashboard')
-        return redirect(RouteServiceProvider::HOME);
+        return redirect()->route('profile.show');
     }
 }
