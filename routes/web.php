@@ -60,8 +60,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/cart', [CartController::class, 'index'])->name('cart.index'); // Показать корзину
     Route::post('/cart', [CartController::class, 'store'])->name('cart.add'); // Добавить товар
     Route::patch('/cart/{cart_item}', [CartController::class, 'update'])->name('cart.update'); // Обновить позицию
-    Route::delete('/cart/{cart_item}', [CartController::class, 'destroy'])->name('cart.destroy'); // Удалить позицию
     Route::delete('/cart/clear', [CartController::class, 'clear'])->name('cart.clear'); // Очистить корзину
+    Route::delete('/cart/{cart_item}', [CartController::class, 'destroy'])->name('cart.destroy'); // Удалить позицию
+
 
     // Оформление заказа
     Route::post('/orders', [OrderController::class, 'store'])->name('orders.store');

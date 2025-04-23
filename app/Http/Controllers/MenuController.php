@@ -59,11 +59,19 @@ class MenuController extends Controller
                 $imageUrl = !empty($defaultVariation->photo) ? asset($defaultVariation->photo) : null;
 
                 // Определяем доступность
-                $isAvailable = true;
-                if ($name == 'Брускетта с ветчиной и сыром') { // Пример
-                    $isAvailable = false;
-                }
+                $isAvailable = true; // По умолчанию доступен
 
+                // --- Примеры установки недоступности для конкретных имен ---
+                // Список названий ТОЧНО ТАК, как они записаны в БД
+                $unavailableNames = [
+                    'Брускетта с ветчиной и сыром',
+                    'Чай RICH'
+                ];
+
+                // Используем $name напрямую (без strtolower) для сравнения
+                if (in_array($name, $unavailableNames)) {
+                    $isAvailable = false; // Устанавливаем false, если имя найдено в списке
+                }
                 // Определяем префикс цены
                 $pricePrefix = ($hasMultipleVariations || in_array(strtolower($name), ['сырники', 'чипсы'])) ? 'от' : '';
 

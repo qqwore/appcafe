@@ -3,101 +3,85 @@
 namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth; // Убедитесь, что Auth импортирован
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache; // Если используете кеш для допов
 use Inertia\Middleware;
-use App\Models\Cart; // <-- ДОБАВЬТЕ ИМПОРТ МОДЕЛИ Cart
+use App\Models\Cart; // Импорт модели Cart
+use App\Models\Product; // Импорт модели Product (для связи)
 
-// Убедитесь, что Ziggy импортирован, ЕСЛИ вы его используете в share()
-// Если вы используете только директиву @routes в Blade, этот импорт НЕ НУЖЕН здесь
-// use Tightenco\Ziggy\Ziggy;
+// use Illuminate\Support\Facades\Vite; // Убедитесь, что это закомментировано или удалено, если не используется
 
 class HandleInertiaRequests extends Middleware
 {
-    /**
-     * Корневой шаблон Blade, который загружается при первом посещении страницы.
-     * Обычно 'app', что соответствует resources/views/app.blade.php.
-     *
-     * @var string
-     */
     protected $rootView = 'app';
 
-    /**
-     * Определяет текущую версию ассетов.
-     * Полезно для автоматического сброса кеша браузера при изменениях.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return string|null
-     */
     public function version(Request $request): ?string
     {
-        // Если вы используете Vite, можно использовать Vite::manifestHash()
-        // return parent::version($request); // Стандартный вариант
-        // В production можно возвращать md5 файла manifest.json для автоматического сброса кеша
+        // Используем стандартный вариант или ваш рабочий вариант
         return parent::version($request);
     }
 
     /**
-     * Определяет пропсы (данные), которые будут доступны
-     * глобально на всех страницах Inertia по умолчанию.
-     * `$page.props` в Vue компонентах.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return array<string, mixed>
+     * Определяет пропсы, которые будут доступны глобально.
      */
     public function share(Request $request): array
     {
-        // Используем array_merge, чтобы добавить наши данные к стандартным данным Inertia
         return array_merge(parent::share($request), [
 
             // --- Данные аутентификации ---
-            'auth' => [
-                // Передаем информацию о текущем пользователе или null
+            'auth' => fn () => [ // Используем замыкание для ленивой загрузки
                 'user' => Auth::check() ? [
                     'id' => Auth::id(),
                     'name' => Auth::user()->name,
                     'email' => Auth::user()->email,
-                    'phone' => Auth::user()->phone, // Убедитесь, что поле phone есть у модели User
-                    // 'is_admin' => Auth::user()->is_admin, // Пример передачи роли
+                    'phone' => Auth::user()->phone,
                 ] : null,
             ],
 
-            // --- Счетчик товаров в корзине ---
-            'cartCount' => function () {
-                // Проверяем, что пользователь авторизован
-                if (Auth::check()) {
-                    // Получаем ID пользователя
-                    $userId = Auth::id();
-                    // Считаем ОБЩЕЕ количество товаров (поле 'count')
-                    // для всех записей корзины этого пользователя.
-                    // Если у вас нет поля 'count' в таблице carts,
-                    // а каждая строка = 1 товар, используйте ->count() вместо ->sum('count')
-                    return Cart::where('user_id', $userId)->sum('count'); // Используем модель Cart
+            // --- Данные корзины для хедера ---
+            'cart' => function () {
+                if (!Auth::check()) {
+                    return [
+                        'count' => 0, // Общее кол-во товаров (сумма count)
+                        'total_default_price' => 0, // Общая сумма БАЗОВЫХ цен
+                    ];
                 }
-                // Если пользователь не авторизован, в корзине 0 товаров
-                return 0;
-            },
-            // --- Конец счетчика товаров ---
 
-            // --- Передача Ziggy маршрутов (если вы НЕ используете @routes в Blade) ---
-            // Если вы ИСПОЛЬЗУЕТЕ @routes в app.blade.php, этот блок НЕ НУЖЕН здесь,
-            // так как @routes уже создает глобальный объект Ziggy.
-            // Если вы НЕ используете @routes, раскомментируйте этот блок:
-            /*
-            'ziggy' => function () use ($request) {
-                return array_merge((new Ziggy)->toArray(), [
-                    'location' => $request->url(),
-                ]);
-            },
-            */
+                // Получаем все элементы корзины пользователя с базовой ценой продукта
+                $cartItems = Cart::where('user_id', Auth::id())
+                    // Подгружаем только ID и цену связанного продукта
+                    ->with('product:id,price')
+                    ->get(['id', 'user_id', 'product_id', 'count']); // Выбираем нужные поля
 
-            // --- Flash сообщения (пример) ---
-            // Позволяет передавать одноразовые сообщения из сессии
-            'flash' => [
-                'message' => fn () => $request->session()->get('message'), // Сообщение об успехе
-                'error' => fn () => $request->session()->get('error'),   // Сообщение об ошибке
-                // Передаем флаг успеха заказа
-                'orderSuccess' => fn () => (bool)$request->session()->get('orderSuccess'),
+                $totalQuantity = $cartItems->sum('count'); // Суммируем количество
+                $totalDefaultPrice = $cartItems->reduce(function ($sum, $item) {
+                    // Умножаем базовую цену продукта на количество в корзине
+                    // Проверяем, что продукт загрузился (не был удален)
+                    $price = $item->product->price ?? 0; // Базовая цена или 0
+                    return $sum + ($price * $item->count);
+                }, 0); // Начальное значение суммы = 0
+
+                return [
+                    'count' => (int) $totalQuantity,
+                    'total_default_price' => round($totalDefaultPrice, 2),
+                ];
+            },
+            // --- Конец данных корзины ---
+
+
+            // --- Flash сообщения ---
+            'flash' => fn () => [ // Используем замыкание
+                'message' => $request->session()->get('message'),
+                'error' => $request->session()->get('error'),
+                'orderSuccess' => (bool)$request->session()->get('orderSuccess'),
             ],
+
+            // --- Ziggy (если НЕ используете @routes в Blade) ---
+            /*
+            'ziggy' => fn () => array_merge((new \Tightenco\Ziggy\Ziggy)->toArray(), [
+                'location' => $request->url(),
+            ]),
+            */
 
         ]);
     }

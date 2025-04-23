@@ -156,7 +156,7 @@ export default {
                 quantity: quantity,    // Выбранное количество
             }, {
                 preserveScroll: true, // Сохранить прокрутку
-                preserveState: false, // Не сохранять локальное состояние этой карточки (сбросить quantity)
+                preserveState: true, // Не сохранять локальное состояние этой карточки (сбросить quantity)
                 onSuccess: () => { // При успехе
                     console.log('Default product variation added to cart!');
                     // Удаляем ключ, чтобы скрыть селектор и показать кнопку "В корзину"
