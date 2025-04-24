@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Cart;
@@ -12,10 +13,15 @@ use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException; // Добавлен импорт
+use Illuminate\Validation\ValidationException;
+
+// Добавлен импорт
 
 class CartController extends Controller
 {
+    /**
+     * Отображение страницы корзины.
+     */
     /**
      * Отображение страницы корзины.
      */
@@ -26,15 +32,19 @@ class CartController extends Controller
             return Inertia::render('Cart', ['cartItems' => [], 'availableExtras' => $this->getAvailableExtras()]);
         }
 
+        // --- ЗАПРОС ДАННЫХ КОРЗИНЫ ---
         $cartItemsData = Cart::where('user_id', $user->id)
             ->with(['product' => function ($query) {
                 $query->with(['category', 'size']);
             }])
-            ->orderBy('created_at', 'asc')
+            ->orderBy('created_at', 'asc') // Сортируем по времени добавления
+            ->orderBy('id', 'asc')         // <-- ДОБАВЛЯЕМ сортировку по ID как вторую
             ->get();
+
 
         $availableExtras = $this->getAvailableExtras();
 
+        // Обрабатываем каждый элемент корзины для передачи во Vue
         $cartItems = $cartItemsData->map(function ($cartItem) use ($availableExtras) {
             if (!$cartItem->product) {
                 return null;
@@ -42,6 +52,7 @@ class CartController extends Controller
             $extrasPrice = $this->calculateExtrasPrice($cartItem, $availableExtras);
             $itemTotalPrice = ($cartItem->product->price + $extrasPrice) * $cartItem->count;
 
+            // Формируем данные для Vue
             return [
                 'id' => $cartItem->id,
                 'quantity' => $cartItem->count,
@@ -57,7 +68,6 @@ class CartController extends Controller
                     'can_add_syrup' => $cartItem->product->can_add_syrup,
                     'can_add_condensed_milk' => $cartItem->product->can_add_condensed_milk,
                     'size_name' => $cartItem->product->size?->name,
-                    // 'available_sizes_ids' => $cartItem->product->available_sizes_ids,
                 ],
                 'selected_options' => [
                     'sugar_quantity' => $cartItem->sugar_quantity ?? 0,
@@ -71,7 +81,7 @@ class CartController extends Controller
         })->filter();
 
         return Inertia::render('Cart', [
-            'cartItems' => $cartItems->values(),
+            'cartItems' => $cartItems->values(), // Передаем обработанные данные
             'availableExtras' => $availableExtras,
             'orderSuccess' => (bool)$request->session()->get('orderSuccess', false),
         ]);
@@ -227,7 +237,7 @@ class CartController extends Controller
     /**
      * Получает список доступных допов из БД.
      */
-    private function getAvailableExtras(): array
+    public function getAvailableExtras(): array
     {
         // Кеширование этого запроса может быть полезно
         $extras = Cache::remember('available_extras', now()->addHour(), function () {

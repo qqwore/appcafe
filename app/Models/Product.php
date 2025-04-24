@@ -1,9 +1,12 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Casts\Attribute; // Для accessors
+use Illuminate\Database\Eloquent\Casts\Attribute;
+
+// Для accessors
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
@@ -18,7 +21,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Product extends Model
 {
     use HasFactory;
-    protected $fillable = [/*...*/ 'photo', /*...*/ 'category_id', 'size_id']; // Добавьте все нужные
+
+    protected $fillable = [/*...*/
+        'photo', /*...*/
+        'category_id', 'size_id']; // Добавьте все нужные
 
     public function category(): BelongsTo
     {
@@ -44,7 +50,7 @@ class Product extends Model
     protected function canAddSugar(): Attribute
     {
         return Attribute::make(
-            get: fn () => in_array($this->category_id, [2, 3]), // ID Не кофе и Кофе
+            get: fn() => in_array($this->category_id, [2, 3]), // ID Не кофе и Кофе
         );
     }
 
@@ -52,7 +58,7 @@ class Product extends Model
     protected function canAddCinnamon(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->category_id === 3, // ID Кофе
+            get: fn() => $this->category_id === 3, // ID Кофе
         );
     }
 
@@ -60,7 +66,7 @@ class Product extends Model
     protected function canAddMilk(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->category_id === 3, // ID Кофе
+            get: fn() => $this->category_id === 3, // ID Кофе
         );
     }
 
@@ -68,7 +74,7 @@ class Product extends Model
     protected function canAddSyrup(): Attribute
     {
         return Attribute::make(
-            get: fn () => in_array($this->category_id, [2, 3]), // ID Не кофе и Кофе
+            get: fn() => in_array($this->category_id, [2, 3]), // ID Не кофе и Кофе
         );
     }
 
@@ -78,7 +84,7 @@ class Product extends Model
         return Attribute::make(
         // Сравнение должно быть точным (с учетом регистра, если не используется strtolower)
         // И имя в БД должно быть ТОЧНО "Сырники"
-            get: fn () => $this->name === 'Сырники',
+            get: fn() => $this->name === 'Сырники',
         );
     }
 
