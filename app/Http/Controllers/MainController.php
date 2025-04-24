@@ -3,107 +3,86 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
-use App\Models\Category; // Импортируем Category, если еще не было
+use App\Models\Category;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB; // Если используете сложные запросы
-use Illuminate\Support\Facades\Log; // Для логирования
+use Illuminate\Support\Facades\Cache; // <-- Добавляем Cache
+use Illuminate\Support\Facades\DB;
 
 class MainController extends Controller
 {
-    /**
-     * Отображение главной страницы с избранными продуктами.
-     * Выбирает 4 случайных доступных продукта (минимум 1 кофе, 1 еда),
-     * подготавливает их данные и рендерит Welcome.vue.
-     */
     public function index(): InertiaResponse
     {
-        // --- ЛОГИКА ВЫБОРА "ИЗБРАННЫХ" ПРОДУКТОВ ---
+        // --- НОВАЯ ЛОГИКА С КЕШИРОВАНИЕМ ID ---
 
-        $coffeeCategoryId = 3;
-        $foodCategoryIds = [1, 4]; // Сытная еда и Десерты
-        $numberOfFeatured = 4; // Желаемое количество товаров на главной
+        $numberOfFeatured = 4;
+        $cacheKey = 'featured_product_names'; // Ключ для кеша
+        $cacheTtl = now()->addHours(1); // Время жизни кеша (1 час)
 
-        // 1. Получаем уникальные названия ДОСТУПНЫХ кофе
-        // Предполагаем, что доступность определяется полем count > 0
-        // Если у вас нет поля count, уберите ->where('count', '>', 0)
-        $allCoffeeNames = Product::where('category_id', $coffeeCategoryId)
-            //->where('count', '>', 0) // <--- Условие доступности (если есть поле count)
-            ->distinct('name')
-            ->pluck('name');
+        // Пытаемся получить имена из кеша или генерируем и кешируем
+        $featuredProductNames = Cache::remember($cacheKey, $cacheTtl, function () use ($numberOfFeatured) {
 
-        // 2. Получаем уникальные названия ДОСТУПНОЙ еды
-        $allFoodNames = Product::whereIn('category_id', $foodCategoryIds)
-            //->where('count', '>', 0) // <--- Условие доступности (если есть поле count)
-            ->distinct('name')
-            ->pluck('name');
+            $coffeeCategoryId = 3;
+            $foodCategoryIds = [1, 4];
 
-        // 3. Выбираем случайные имена, гарантируя по одному из каждой группы (если они есть)
-        $randomCoffeeName = $allCoffeeNames->isNotEmpty() ? $allCoffeeNames->random() : null;
-        $randomFoodName = $allFoodNames->isNotEmpty() ? $allFoodNames->random() : null;
+            // Получаем все УНИКАЛЬНЫЕ и ДОСТУПНЫЕ имена
+            $allAvailableCoffeeNames = Product::where('category_id', $coffeeCategoryId)
+                // ->where('count', '>', 0) // Добавьте фильтр доступности, если есть
+                ->distinct('name')
+                ->pluck('name');
+            $allAvailableFoodNames = Product::whereIn('category_id', $foodCategoryIds)
+                // ->where('count', '>', 0) // Добавьте фильтр доступности
+                ->distinct('name')
+                ->pluck('name');
 
-        // 4. Собираем все доступные имена (кофе + еда), исключая уже выбранные
-        // Применяем фильтр доступности еще раз на всякий случай, если он не применялся выше
-        $allAvailableNames = Product::where(function ($query) use ($coffeeCategoryId, $foodCategoryIds) {
-            $query->where('category_id', $coffeeCategoryId)
-                ->orWhereIn('category_id', $foodCategoryIds);
-        })
-            //->where('count', '>', 0) // <--- Условие доступности (если есть поле count)
-            ->distinct('name')
-            ->pluck('name');
+            // Гарантируем по одному, если возможно
+            $names = collect();
+            if ($allAvailableCoffeeNames->isNotEmpty()) {
+                $names->push($allAvailableCoffeeNames->random());
+            }
+            if ($allAvailableFoodNames->isNotEmpty()) {
+                $names->push($allAvailableFoodNames->random());
+            }
+            $names = $names->unique(); // Убираем дубликат, если кофе=еда случайно
 
-        // Убираем уже выбранные случайные и перемешиваем
-        $remainingNames = $allAvailableNames->diff(array_filter([$randomCoffeeName, $randomFoodName]))
-            ->shuffle();
+            // Собираем все остальные доступные имена, исключая уже выбранные
+            $remainingNames = $allAvailableCoffeeNames->merge($allAvailableFoodNames)
+                ->diff($names)
+                ->shuffle();
 
-        // 5. Формируем итоговый список имен
-        $featuredProductNames = collect(array_filter([$randomCoffeeName, $randomFoodName]));
+            // Добираем до нужного количества
+            $needed = $numberOfFeatured - $names->count();
+            if ($needed > 0) {
+                $names = $names->merge($remainingNames->take($needed));
+            }
 
-        // Добираем недостающие из оставшихся перемешанных
-        $needed = $numberOfFeatured - $featuredProductNames->count();
-        if ($needed > 0) {
-            $featuredProductNames = $featuredProductNames->merge($remainingNames->take($needed));
-        }
-
-        // Ограничиваем итоговое количество
-        $featuredProductNames = $featuredProductNames->take($numberOfFeatured);
+            return $names->take($numberOfFeatured)->values(); // Возвращаем коллекцию имен для кеширования
+        });
         // --- КОНЕЦ ЛОГИКИ ВЫБОРА ИМЕН ---
 
 
-        // 6. Получаем все ВАРИАЦИИ для выбранных НАЗВАНИЙ
+        // --- Получение вариаций и обработка (без изменений) ---
         if ($featuredProductNames->isEmpty()) {
-            $featuredProducts = collect(); // Пустая коллекция, если не нашли имен
-            Log::warning('No featured products could be selected for the main page.'); // Логируем
+            $featuredProducts = collect();
         } else {
             $allFeaturedVariations = Product::whereIn('name', $featuredProductNames)
-                // ->with('category', 'size') // Подгружаем связи, если нужны дальше
                 ->orderBy('name')
                 ->get();
-
-            // 7. Группируем и обрабатываем вариации
             $groupedByName = $allFeaturedVariations->groupBy('name');
-
             $featuredProducts = $groupedByName->map(function (Collection $group, $name) {
+                // ... (вся логика map остается прежней: defaultVariation, imageUrl, pricePrefix...) ...
                 $firstProduct = $group->first();
                 if (!$firstProduct) return null;
-
                 $minPrice = $group->min('price');
                 $hasMultipleVariations = $group->count() > 1;
-                // Находим стандартную вариацию
                 $defaultVariation = $group->firstWhere('size_name', 'Medium') ?? $firstProduct;
-
-                // Генерируем URL картинки
                 $imageUrl = !empty($defaultVariation->photo) ? asset($defaultVariation->photo) : null;
-
-                // Определяем префикс цены
+                $isAvailable = true; // Замените на реальную логику
                 $pricePrefix = ($hasMultipleVariations || in_array(strtolower($name), ['сырники', 'чипсы'])) ? 'от' : '';
-
-                // Определяем описание
                 $description = (strtolower($name) === 'чипсы') ? 'В ассортименте' : $defaultVariation->description;
 
-                // Формируем итоговый объект
                 return [
                     'display_id' => $defaultVariation->id,
                     'name' => $name,
@@ -112,20 +91,20 @@ class MainController extends Controller
                     'price_prefix' => $pricePrefix,
                     'image_url' => $imageUrl,
                     'description' => $description,
-                    'is_available' => true, // Устанавливаем true, т.к. выбирали из доступных (по логике выше)
+                    'is_available' => $isAvailable,
                     'has_variations' => $hasMultipleVariations,
                 ];
-            })->filter()->values(); // Убираем null и сбрасываем ключи
+            })->filter()->values();
 
-            // (Опционально) Пересортировать $featuredProducts согласно $featuredProductNames, если порядок важен
-            // $featuredProducts = $featuredProducts->sortBy(function($product) use ($featuredProductNames) {
-            //     return array_search($product['name'], $featuredProductNames->all());
-            // })->values();
-
+            // (Опционально) Сортируем результат согласно порядку в $featuredProductNames
+            $featuredProducts = $featuredProducts->sortBy(function($product) use ($featuredProductNames) {
+                return $featuredProductNames->search($product['name']);
+            })->values();
         }
-        // --- КОНЕЦ ПОДГОТОВКИ ДАННЫХ ---
+        // --- Конец обработки ---
 
-        // 8. Рендерим Welcome.vue, передавая избранные продукты
+
+        // Рендеринг (без изменений)
         return Inertia::render('Welcome', [
             'featuredProducts' => $featuredProducts,
         ]);

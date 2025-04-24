@@ -76,9 +76,9 @@ class Product extends Model
     protected function canAddCondensedMilk(): Attribute
     {
         return Attribute::make(
-        // Сверяем по имени продукта ИЛИ по категории Десерты(4)? Выберите что точнее.
-            get: fn () => strtolower($this->name) === 'сырники', // По имени
-        // get: fn () => $this->category_id === 4, // Или по категории Десерты
+        // Сравнение должно быть точным (с учетом регистра, если не используется strtolower)
+        // И имя в БД должно быть ТОЧНО "Сырники"
+            get: fn () => $this->name === 'Сырники',
         );
     }
 

@@ -63,7 +63,7 @@ class AuthenticatedSessionController extends Controller
         // redirect()->intended() попытается перенаправить на страницу,
         // которую пользователь хотел посетить до редиректа на логин,
         // или на указанный URL по умолчанию (например, '/dashboard')
-        return redirect()->intended('/Home'); // <-- Замените '/dashboard' на ваш URL после логина
+        return redirect()->intended('/profile'); // <-- Замените '/dashboard' на ваш URL после логина
     }
 
     /**
