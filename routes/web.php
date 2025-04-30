@@ -9,10 +9,11 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MainController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\CartController;
-use App\Http\Controllers\OrderController; // Убедитесь, что этот контроллер существует
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProfileController; // Используется для профиля
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\ProductController;
 
 
 /*
@@ -79,3 +80,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'/*, 'admin' */])->grou
     // Маршруты вашей админки
     // Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
 });
+
+// Маршрут для страницы одного продукта (используем ID)
+Route::get('/products/{product:slug}', [ProductController::class, 'show'])->name('products.show');
+// Laravel автоматически найдет Product по ID благодаря Route Model Binding

@@ -20,8 +20,8 @@ return new class extends Migration
             $table->boolean('has_condensed_milk')->default(false)->after('syrup_extra_id');
 
             // Добавляем столбцы для хранения цены на момент заказа
-            $table->decimal('unit_price', 8, 2)->after('has_condensed_milk'); // Цена за 1 шт. базового продукта
-            $table->decimal('extras_price', 8, 2)->default(0.00)->after('unit_price'); // Цена допов для 1 шт.
+            $table->decimal('unit_price', 8, 2)->nullable()->after('has_condensed_milk'); // Цена за 1 шт. базового продукта
+            $table->decimal('extras_price', 8, 2)->nullable()->default(0.00)->after('unit_price'); // Цена допов для 1 шт.
 
             // Удаляем старый extra_id, если он больше не нужен и не используется
             // if (Schema::hasColumn('order_products', 'extra_id')) {

@@ -5,9 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Spatie\Sluggable\HasSlug;
 
+// <-- Импорт трейта
+use Spatie\Sluggable\SlugOptions;
+
+// <-- Импорт опций
 // Для accessors
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
 
 /**
  * ... (PHPDoc) ...
@@ -16,15 +23,47 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read bool $can_add_milk
  * @property-read bool $can_add_syrup
  * @property-read bool $can_add_condensed_milk
- * @property-read array|null $available_sizes_ids // Пример
+ * @property-read array|null $available_sizes_ids
+ * @property-read \Illuminate\Database\Eloquent\Collection|Product[] $variations
  */
 class Product extends Model
 {
-    use HasFactory;
+    use HasFactory, HasSlug;
 
-    protected $fillable = [/*...*/
-        'photo', /*...*/
-        'category_id', 'size_id']; // Добавьте все нужные
+    protected function variations(): Attribute
+    {
+        return Attribute::make(
+            get: fn() => Product::where('name', $this->name)
+                ->with('size') // Загружаем размер для каждой вариации
+                ->orderBy('size_id') // Сортируем по размеру
+                ->get(),
+        );
+    }
+
+    protected $fillable = [
+        'name',
+        'price',
+        'photo',
+        'slug', // <-- ДОБАВЬТЕ
+        'description',
+        'type',
+        'count',
+        'category_id',
+        'size_id',
+        'k_p_f_c_id'
+    ];
+
+    public function getSlugOptions(): SlugOptions
+    {
+        return SlugOptions::create()
+            ->generateSlugsFrom('name') // Генерировать слаг из поля 'name'
+            ->saveSlugsTo('slug'); // Сохранять в поле 'slug'
+    }
+
+    public function cartItems(): HasMany
+    {
+        return $this->hasMany(Cart::class);
+    }
 
     public function category(): BelongsTo
     {

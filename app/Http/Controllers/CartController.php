@@ -90,48 +90,87 @@ class CartController extends Controller
     /**
      * Добавление товара в корзину.
      */
+    /**
+     * Добавление товара в корзину (вызывается из Menu.vue или Welcome.vue).
+     * ВСЕГДА СОЗДАЕТ НОВУЮ ЗАПИСЬ В КОРЗИНЕ.
+     */
     public function store(Request $request): RedirectResponse
     {
         $user = $request->user();
         if (!$user) return redirect()->route('login');
 
+        // Валидация базовых данных + опций
         $validated = $request->validate([
-            'product_id' => ['required', 'integer', 'exists:products,id'],
+            'product_id' => ['required', 'integer', 'exists:products,id'], // ID ВЫБРАННОЙ вариации/размера
             'quantity' => ['required', 'integer', 'min:1', 'max:10'],
+            // Валидация опций (необязательные, могут быть null)
+            'options' => ['nullable', 'array'],
+            'options.sugar_quantity' => ['sometimes', 'required', 'integer', 'min:0', 'max:3'],
+            'options.has_cinnamon' => ['sometimes', 'required', 'boolean'],
+            'options.milk_extra_id' => ['nullable', 'integer', Rule::exists('extras', 'id')], // Упрощенная валидация ID
+            'options.syrup_extra_id' => ['nullable', 'integer', Rule::exists('extras', 'id')],
+            'options.has_condensed_milk' => ['sometimes', 'required', 'boolean'],
         ]);
 
         $productId = $validated['product_id'];
         $quantity = $validated['quantity'];
+        $options = $validated['options'] ?? []; // Получаем опции или пустой массив
 
+        // --- ПРОВЕРКА ПРИМЕНИМОСТИ ОПЦИЙ К ПРОДУКТУ (ВАЖНО!) ---
+        $product = Product::find($productId);
+        if (!$product) {
+            return redirect()->back()->withErrors(['product_id' => 'Выбранный товар не найден.']);
+        }
+
+        // Убираем недопустимые опции из массива $options
+        if (isset($options['sugar_quantity']) && !$product->can_add_sugar) unset($options['sugar_quantity']);
+        if (isset($options['has_cinnamon']) && !$product->can_add_cinnamon) unset($options['has_cinnamon']);
+        if (isset($options['milk_extra_id']) && !$product->can_add_milk) unset($options['milk_extra_id']);
+        if (isset($options['syrup_extra_id']) && !$product->can_add_syrup) unset($options['syrup_extra_id']);
+        if (isset($options['has_condensed_milk']) && !$product->can_add_condensed_milk) unset($options['has_condensed_milk']);
+        // Дополнительно: обнулить ID допов, если выбран 'Обычное'/'Без сиропа' (хотя фронтенд должен слать null)
+        if (isset($options['milk_extra_id']) && $options['milk_extra_id'] === null) unset($options['milk_extra_id']);
+        if (isset($options['syrup_extra_id']) && $options['syrup_extra_id'] === null) unset($options['syrup_extra_id']);
+        // --- КОНЕЦ ПРОВЕРКИ ПРИМЕНИМОСТИ ---
+
+
+        // --- ПОИСК ИЛИ СОЗДАНИЕ ЗАПИСИ В КОРЗИНЕ ---
+        // Ищем запись с ТОЧНО ТАКИМ ЖЕ набором опций
         $cartItem = Cart::where('user_id', $user->id)
             ->where('product_id', $productId)
-            // Добавьте сюда where для опций по умолчанию, если нужно различать
-            // ->whereNull('milk_extra_id')
-            // ->whereNull('syrup_extra_id')
-            // ...
+            ->where('sugar_quantity', $options['sugar_quantity'] ?? 0)
+            ->where('has_cinnamon', $options['has_cinnamon'] ?? false)
+            ->where('milk_extra_id', $options['milk_extra_id'] ?? null)
+            ->where('syrup_extra_id', $options['syrup_extra_id'] ?? null)
+            ->where('has_condensed_milk', $options['has_condensed_milk'] ?? false)
             ->first();
 
         if ($cartItem) {
+            // Нашли такую же позицию - увеличиваем количество
             $newQuantity = $cartItem->count + $quantity;
             if ($newQuantity > 10) {
-                return redirect()->back()->withErrors(['quantity' => 'Максимальное количество товара в корзине - 10 шт.']);
-            } else {
-                $cartItem->count = $newQuantity;
+                return redirect()->back()->withErrors(['quantity' => 'Максимальное количество этого товара с такими опциями - 10 шт.']);
             }
+            $cartItem->count = $newQuantity;
             $cartItem->save();
         } else {
+            // Не нашли - создаем новую позицию
             Cart::create([
                 'user_id' => $user->id,
                 'product_id' => $productId,
                 'count' => $quantity,
-                'sugar_quantity' => 0,
-                'has_cinnamon' => false,
-                'milk_extra_id' => null,
-                'syrup_extra_id' => null,
-                'has_condensed_milk' => false,
+                // Записываем переданные (и проверенные) опции
+                'sugar_quantity' => $options['sugar_quantity'] ?? 0,
+                'has_cinnamon' => $options['has_cinnamon'] ?? false,
+                'milk_extra_id' => $options['milk_extra_id'] ?? null,
+                'syrup_extra_id' => $options['syrup_extra_id'] ?? null,
+                'has_condensed_milk' => $options['has_condensed_milk'] ?? false,
             ]);
         }
+        // --- КОНЕЦ ПОИСКА/СОЗДАНИЯ ---
 
+        // Редирект обратно на страницу продукта ИЛИ в корзину
+        // return redirect()->back()->with('message', 'Товар добавлен в корзину!');
         return redirect()->back()->with('message', 'Товар добавлен в корзину!');
     }
 

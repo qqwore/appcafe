@@ -64,8 +64,8 @@ class MenuController extends Controller
                 // --- Примеры установки недоступности для конкретных имен ---
                 // Список названий ТОЧНО ТАК, как они записаны в БД
                 $unavailableNames = [
-                    'Брускетта с ветчиной и сыром',
-                    'Чай RICH'
+//                    'Брускетта с ветчиной и сыром',
+//                    'Чай RICH'
                 ];
 
                 // Используем $name напрямую (без strtolower) для сравнения
@@ -84,6 +84,7 @@ class MenuController extends Controller
                     'name' => $name,
                     'category_id' => $firstProduct->category_id, // Сохраняем реальный ID категории
                     'min_price' => $minPrice,
+                    'slug' => $defaultVariation->slug, // <-- ДОБАВЛЯЕМ СЛАГ (берем от стандартной вариации)
                     'price_prefix' => $pricePrefix,
                     'image_url' => $imageUrl,
                     'description' => $description,

@@ -6,36 +6,46 @@ import {router} from '@inertiajs/vue3'; // Импортируем router для 
 export default {
     name: 'MenuPage',
     layout: AppLayout,
-    // Head компонент можно добавить, если нужен title для страницы
-    // components: { Head },
+    // components: { Head }, // Head не используется в шаблоне ниже
     props: {
-        // Данные продуктов, сгруппированные по ID категории
         productsByCategory: {
             type: Object,
             default: () => ({})
         },
-        // Массив всех категорий {id: number, name: string}
         categories: {
             type: Array,
             default: () => []
         },
-        // Опционально: детальные данные корзины (если не хотите полагаться только на $page)
-        // cartDetailedItems: {
-        //   type: Array,
-        //   default: () => []
-        // }
+        // Убедитесь, что $page.props.cart_details передается!
     },
     data() {
         return {
-            // ID желаемого порядка категорий
-            categoryOrder: [3, 2, 1, 4], // 3:Кофе, 2:Не кофе->Напитки, 1:Сытная еда, 4:Десерты
-            // ID выбранной категории (установим в mounted)
+            categoryOrder: [3, 2, 1, 4],
             selectedCategoryId: null,
-            // Отслеживание состояния загрузки для кнопок
             loadingItems: {}, // { display_id: true/false }
         };
     },
     computed: {
+        /**
+         * Карта товаров БЕЗ ОПЦИЙ, которые уже есть в корзине.
+         */
+        cartItemsMap() {
+            const map = {};
+            const pageCartItems = this.$page.props.cart_details?.items || [];
+            pageCartItems.forEach(item => {
+                if (item.product?.id) {
+                    const categoryId = this.findProductCategory(item.product.id);
+                    const hasOptions = this.checkIfProductHasOptions(item.product.id, categoryId);
+                    if (!hasOptions) {
+                        map[item.product.id] = {
+                            cart_item_id: item.id,
+                            quantity: item.quantity
+                        };
+                    }
+                }
+            });
+            return map;
+        },
         /**
          * Возвращает категории в заданном порядке и переименовывает "Не кофе".
          */
@@ -53,17 +63,19 @@ export default {
             categoryMap.forEach(category => orderedCategories.push(category));
             return orderedCategories;
         },
-
         /**
          * Возвращает продукты только для выбранной категории.
          */
         filteredProducts() {
-            if (!this.selectedCategoryId || !this.productsByCategory || !this.productsByCategory[this.selectedCategoryId]) {
+            if (!this.selectedCategoryId || !this.productsByCategory || typeof this.productsByCategory !== 'object') {
                 return [];
             }
-            return this.productsByCategory[this.selectedCategoryId].products;
+            const categoryData = this.productsByCategory[this.selectedCategoryId];
+            if (!categoryData || !Array.isArray(categoryData.products)) {
+                return [];
+            }
+            return categoryData.products;
         },
-
         /**
          * Возвращает имя выбранной категории.
          */
@@ -72,25 +84,6 @@ export default {
             const selectedCategory = this.sortedCategories.find(cat => cat.id === this.selectedCategoryId);
             return selectedCategory ? selectedCategory.name : 'Меню';
         },
-
-        /**
-         * Карта товаров, которые уже есть в корзине.
-         * Использует $page.props.cart_details, убедитесь, что они передаются.
-         */
-        cartItemsMap() {
-            const map = {};
-            // Используем $page.props.cart_details или cartDetailedItems, если передаете пропсом
-            const pageCartItems = this.$page.props.cart_details?.items || [];
-            pageCartItems.forEach(item => {
-                if (item.product?.id) { // Проверка на наличие product.id
-                    map[item.product.id] = {
-                        cart_item_id: item.id, // ID строки в таблице carts
-                        quantity: item.quantity
-                    };
-                }
-            });
-            return map;
-        }
     },
     methods: {
         /**
@@ -98,9 +91,7 @@ export default {
          */
         selectCategory(categoryId) {
             this.selectedCategoryId = categoryId;
-            // Не нужно сбрасывать productQuantities, т.к. оно больше не используется локально
         },
-
         /**
          * Форматирует цену.
          */
@@ -108,144 +99,163 @@ export default {
             const numPrice = parseFloat(price);
             return !isNaN(numPrice) ? Math.floor(numPrice) : price;
         },
-
         /**
-         * Проверяет, есть ли товар в корзине.
+         * Определяет, есть ли у продукта опции.
+         */
+        checkIfProductHasOptions(productId, categoryId) {
+            if (categoryId === undefined) {
+                categoryId = this.findProductCategory(productId);
+            }
+            if ([3].includes(categoryId)) return true; // Кофе
+            if ([4].includes(categoryId)) { // Десерты
+                const product = this.findProductById(productId);
+                // Проверяем флаг can_add_condensed_milk ИЛИ имя
+                return product?.can_add_condensed_milk ?? (product?.name === 'Сырники');
+            }
+            return false; // Остальные
+        },
+        /**
+         * Вспомогательный метод: находит продукт по ID.
+         */
+        findProductById(productId) {
+            for (const catId in this.productsByCategory) {
+                const product = this.productsByCategory[catId]?.products.find(p => p.display_id === productId);
+                if (product) return product;
+            }
+            return null;
+        },
+        /**
+         * Вспомогательный метод для поиска ID категории продукта.
+         */
+        findProductCategory(productId) {
+            const product = this.findProductById(productId);
+            return product?.category_id ?? null;
+        },
+        /**
+         * Проверяет, есть ли товар БЕЗ ОПЦИЙ в корзине.
          */
         isInCart(displayId) {
             return !!this.cartItemsMap[displayId];
         },
-
         /**
-         * Возвращает количество из корзины.
+         * Возвращает количество из корзины для товара БЕЗ ОПЦИЙ.
          */
         getCartQuantity(displayId) {
             return this.cartItemsMap[displayId]?.quantity ?? 0;
         },
-
         /**
-         * Добавляет 1 штуку товара в корзину.
+         * Добавляет 1 штуку товара БЕЗ ОПЦИЙ в корзину.
          */
-        addItemToCart(displayId) {
-            // Используем прямое присваивание для loadingItems
+        // resources/js/Pages/Menu.vue -> methods
+
+        addItemToCart(displayId) { // Добавляет 1 шт товара БЕЗ ОПЦИЙ
             this.loadingItems[displayId] = true;
-            console.log(`Adding 1 unit of product ${displayId} to cart.`);
             router.post(route('cart.add'), {
                 product_id: displayId,
                 quantity: 1,
+                options: {} // Пустые опции
             }, {
                 preserveScroll: true,
+                // --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
+                // preserveState: true, // Можно установить true, чтобы сохранить другое состояние
+                // ИЛИ просто убрать эту строку (по умолчанию false)
+                // Главное, чтобы НЕ БЫЛО preserveState: false
+                // --- КОНЕЦ ИЗМЕНЕНИЯ ---
                 onSuccess: () => {
-                    console.log('Product added!');
+                    console.log('Simple product added!');
+                    // НЕ удаляем loadingItems здесь, т.к. ждем обновления props
+                    // Vue DevTools покажет обновление cartItemsMap, и v-if/v-else сработают
                 },
                 onError: errors => {
-                    console.error('Failed to add product to cart:', errors);
-                    alert('Не удалось добавить товар. Ошибка: ' + JSON.stringify(errors));
+                    console.error('Failed to add simple product:', errors);
+                    // Разблокируем кнопку при ошибке
+                    delete this.loadingItems[displayId];
                 },
                 onFinish: () => {
-                    // Используем delete для loadingItems
+                    // Разблокируем кнопку ПОСЛЕ завершения запроса (успех или ошибка)
+                    // Это важно, т.к. onSuccess может не сработать при определенных редиректах
+                    // (хотя с preserveScroll=true обычно срабатывает)
+                    // Мы УЖЕ удаляем его в onError, так что здесь может быть лишним,
+                    // но оставим для надежности на случай других ошибок.
+                    // Если будут проблемы с двойным удалением - убрать отсюда.
                     delete this.loadingItems[displayId];
                 }
             });
         },
-
         /**
-         * Увеличивает количество товара В КОРЗИНЕ.
+         * Увеличивает количество товара БЕЗ ОПЦИЙ В КОРЗИНЕ.
          */
         increaseQuantity(displayId) {
             const currentItem = this.cartItemsMap[displayId];
             if (!currentItem) return;
             const newQuantity = currentItem.quantity + 1;
-
             if (newQuantity <= 10) {
-                this.loadingItems[displayId] = true; // Блокируем
+                this.loadingItems[displayId] = true;
                 router.patch(route('cart.update', {cart_item: currentItem.cart_item_id}), {
-                    quantity: newQuantity,
+                    quantity: newQuantity
                 }, {
-                    preserveScroll: true,
-                    preserveState: true, // Можно оставить true, т.к. меняем существующий
-                    onSuccess: () => console.log(`Quantity updated to ${newQuantity}`),
-                    onError: errors => console.error('Quantity update failed:', errors),
+                    preserveScroll: true, preserveState: true,
+                    onSuccess: () => {
+                    }, onError: errors => {
+                    },
                     onFinish: () => {
                         delete this.loadingItems[displayId];
-                    } // Разблокируем
+                    }
                 });
-            } else {
-                console.warn(`Cannot add more than 10 items for product ID: ${displayId}`);
             }
         },
-
         /**
-         * Уменьшает количество товара В КОРЗИНЕ. Если 0 - удаляет.
+         * Уменьшает количество товара БЕЗ ОПЦИЙ В КОРЗИНЕ. Если 0 - удаляет.
          */
         decreaseQuantity(displayId) {
             const currentItem = this.cartItemsMap[displayId];
             if (!currentItem) return;
             const newQuantity = currentItem.quantity - 1;
-
             if (newQuantity >= 1) {
-                this.loadingItems[displayId] = true; // Блокируем
+                this.loadingItems[displayId] = true;
                 router.patch(route('cart.update', {cart_item: currentItem.cart_item_id}), {
-                    quantity: newQuantity,
+                    quantity: newQuantity
                 }, {
-                    preserveScroll: true,
-                    preserveState: true,
-                    onSuccess: () => console.log(`Quantity updated to ${newQuantity}`),
-                    onError: errors => console.error('Quantity update failed:', errors),
+                    preserveScroll: true, preserveState: true,
+                    onSuccess: () => {
+                    }, onError: errors => {
+                    },
                     onFinish: () => {
                         delete this.loadingItems[displayId];
-                    } // Разблокируем
+                    }
                 });
             } else {
-                // Если уменьшаем до нуля - вызываем удаление
                 this.removeItem(currentItem.cart_item_id, displayId);
             }
         },
-
         /**
-         * Удаляет товар из корзины.
+         * Удаляет товар БЕЗ ОПЦИЙ из корзины.
          */
         removeItem(cartItemId, displayId) {
-            if (!cartItemId) {
-                console.error("Cannot remove item, cart_item_id is missing for displayId:", displayId);
-                return;
-            }
-            this.loadingItems[displayId] = true; // Блокируем
+            if (!cartItemId) return;
+            this.loadingItems[displayId] = true;
             router.delete(route('cart.destroy', {cart_item: cartItemId}), {
                 preserveScroll: true,
                 onSuccess: () => {
-                    console.log(`Item ${cartItemId} removed`);
-                },
-                onError: errors => {
-                    console.error('Item remove failed:', errors);
-                    alert('Не удалось удалить товар. Ошибка: ' + JSON.stringify(errors));
+                }, onError: errors => {
                 },
                 onFinish: () => {
                     delete this.loadingItems[displayId];
-                } // Разблокируем
+                }
             });
         },
     },
-    /**
-     * Хук жизненного цикла Options API.
-     */
     mounted() {
-        // Устанавливаем категорию по умолчанию
         if (this.sortedCategories.length > 0) {
-            // Проверяем, есть ли уже выбранная категория (например, после F5)
-            // Если нет, устанавливаем первую из отсортированного списка
             if (!this.selectedCategoryId) {
                 this.selectedCategoryId = this.sortedCategories[0].id;
             }
         }
-        console.log("Initial cart map:", this.cartItemsMap); // Отладка
-        console.log("Page Props:", this.$page.props); // Отладка
     }
 }
 </script>
 
 <template>
-    <!-- <Head title="Меню" /> Используйте, если нужно -->
     <div class="py-12 bg-white">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
@@ -272,20 +282,28 @@ export default {
                 </h2>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
                     <!-- Карточка товара -->
-                    <div v-for="product in filteredProducts" :key="product.display_id"
+                    <div v-for="product in filteredProducts" :key="product.slug"
                          class="bg-gray-50 rounded-lg shadow-md overflow-hidden p-6 flex flex-col group">
-                        <!-- Изображение -->
-                        <div class="relative mb-4 h-48 bg-gray-100 rounded-md overflow-hidden group">
-                            <img v-if="product.image_url" :src="product.image_url" :alt="product.name"
-                                 class="w-full h-full object-cover transition-transform duration-300 ease-in-out group-hover:scale-105"
-                                 loading="lazy">
-                            <div v-else class="w-full h-full flex items-center justify-center text-gray-400 text-sm">Нет
-                                изображения
+
+                        <!-- Картинка/Название - всегда ссылка -->
+                        <a :href="route('products.show', { product: product.slug})" class="block">
+                            <div class="relative mb-4 h-48 bg-gray-100 rounded-md overflow-hidden">
+                                <img v-if="product.image_url" :src="product.image_url" :alt="product.name"
+                                     class="w-full h-full object-cover transition-transform duration-300 ease-in-out group-hover:scale-105"
+                                     loading="lazy">
+                                <div v-else
+                                     class="w-full h-full flex items-center justify-center text-gray-400 text-sm">Нет
+                                    изображения
+                                </div>
                             </div>
-                        </div>
-                        <!-- Название и Цена -->
+                        </a>
                         <div class="flex-grow mb-4">
-                            <h3 class="text-xl font-semibold text-gray-800 mb-1">{{ product.name }}</h3>
+                            <h3 class="text-xl font-semibold text-gray-800 mb-1">
+                                <a :href="route('products.show', { product: product.slug })"
+                                   class="hover:text-emerald-600">
+                                    {{ product.name }}
+                                </a>
+                            </h3>
                             <p class="text-lg font-bold text-gray-700">{{ product.price_prefix }}
                                 {{ formatPrice(product.min_price) }} ₽</p>
                             <p v-if="product.description" class="text-sm text-gray-500 mt-1">{{
@@ -293,82 +311,92 @@ export default {
                                 }}</p>
                         </div>
 
-                        <!-- Логика кнопок -->
-                        <div class="mt-auto h-10 flex items-center"> <!-- Задаем высоту для стабильности -->
-                            <!-- Кнопка "В корзину" (если товара НЕТ в корзине) -->
-                            <button
-                                v-if="!isInCart(product.display_id)"
-                                @click="addItemToCart(product.display_id)"
-                                :disabled="product.is_available === false || loadingItems[product.display_id]"
-                                :class="[
-                      'w-full font-bold py-2 px-4 rounded-full transition duration-150 ease-in-out flex items-center justify-center',
-                      product.is_available === false ? 'bg-gray-300 text-gray-500 cursor-not-allowed' :
-                      loadingItems[product.display_id] ? 'bg-emerald-300 text-white cursor-wait' :
-                      'bg-emerald-500 hover:bg-emerald-600 text-white'
-                   ]">
-                                <svg v-if="product.is_available !== false && !loadingItems[product.display_id]"
-                                     class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                    <path
-                                        d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H4.72l-.21-.842A1 1 0 003 1z"></path>
-                                    <path fill-rule="evenodd"
-                                          d="M6 16a2 2 0 100 4 2 2 0 000-4zm9 0a2 2 0 100 4 2 2 0 000-4z"
-                                          clip-rule="evenodd"></path>
-                                </svg>
-                                <svg v-if="loadingItems[product.display_id]"
-                                     class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                                     xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                            stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor"
-                                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                <span>{{
-                                        product.is_available === false ? 'Сегодня нет' : (loadingItems[product.display_id] ? 'Добавляем...' : 'В корзину')
-                                    }}</span>
-                            </button>
-
-                            <!-- Селектор +/- и Удаление (если товар ЕСТЬ в корзине) -->
-                            <div v-else class="flex items-center justify-between space-x-2 w-full">
-                                <div class="flex items-center border border-gray-300 rounded-full overflow-hidden">
-                                    <button @click="decreaseQuantity(product.display_id)"
-                                            :disabled="loadingItems[product.display_id]"
-                                            class="px-3 py-1 text-gray-600 hover:bg-gray-100 focus:outline-none disabled:opacity-50">
-                                        -
-                                    </button>
-                                    <!-- Отображаем количество из cartItemsMap -->
-                                    <span class="px-3 py-1 text-center font-medium text-gray-700 w-10">{{
-                                            getCartQuantity(product.display_id)
-                                        }}</span>
-                                    <button @click="increaseQuantity(product.display_id)"
-                                            :disabled="loadingItems[product.display_id] || getCartQuantity(product.display_id) >= 10"
-                                            class="px-3 py-1 text-gray-600 hover:bg-gray-100 focus:outline-none disabled:opacity-50">
-                                        +
-                                    </button>
-                                </div>
+                        <!-- Гибридная логика кнопок -->
+                        <div class="mt-auto h-10 flex items-center">
+                            <!-- Вариант 1: Кнопка "Выбрать опции" -->
+                            <a v-if="checkIfProductHasOptions(product.slug, product.category_id)"
+                               :href="route('products.show', { product: product.slug })"
+                               :class="[
+                        'w-full font-bold py-2 px-4 rounded-full transition duration-150 ease-in-out flex items-center justify-center text-center',
+                        product.is_available === false ? 'bg-gray-300 text-gray-500 cursor-not-allowed pointer-events-none' : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                    ]">
+                                <span>{{ product.is_available === false ? 'Сегодня нет' : 'Выбрать' }}</span>
+                            </a>
+                            <!-- Вариант 2: Старая логика для товаров без опций -->
+                            <template v-else>
+                                <!-- Кнопка "В корзину" -->
                                 <button
-                                    @click="removeItem(cartItemsMap[product.display_id]?.cart_item_id, product.display_id)"
-                                    :disabled="loadingItems[product.display_id] || !cartItemsMap[product.display_id]?.cart_item_id"
-                                    class="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition duration-150 ease-in-out focus:outline-none disabled:opacity-50"
-                                    title="Удалить из корзины">
-                                    <svg v-if="!loadingItems[product.display_id]" class="w-5 h-5" fill="currentColor"
-                                         viewBox="0 0 20 20">
+                                    v-if="!isInCart(product.slug)"
+                                    @click="addItemToCart(product.slug)"
+                                    :disabled="product.is_available === false || loadingItems[product.slug]"
+                                    :class="[
+                          'w-full font-bold py-2 px-4 rounded-full transition duration-150 ease-in-out flex items-center justify-center',
+                          product.is_available === false ? 'bg-gray-300 text-gray-500 cursor-not-allowed' :
+                          loadingItems[product.slug] ? 'bg-emerald-300 text-white cursor-wait' :
+                          'bg-emerald-500 hover:bg-emerald-600 text-white'
+                       ]">
+                                    <svg v-if="product.is_available !== false && !loadingItems[product.slug]"
+                                         class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"
+                                         xmlns="http://www.w3.org/2000/svg">
+                                        <path
+                                            d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H4.72l-.21-.842A1 1 0 003 1z"></path>
                                         <path fill-rule="evenodd"
-                                              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                              d="M6 16a2 2 0 100 4 2 2 0 000-4zm9 0a2 2 0 100 4 2 2 0 000-4z"
                                               clip-rule="evenodd"></path>
                                     </svg>
-                                    <svg v-else class="animate-spin h-5 w-5 text-red-600"
+                                    <svg v-if="loadingItems[product.slug]"
+                                         class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
                                          xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
                                                 stroke-width="4"></circle>
                                         <path class="opacity-75" fill="currentColor"
                                               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
+                                    <span>{{
+                                            product.is_available === false ? 'Сегодня нет' : (loadingItems[product.slug] ? 'Добавляем...' : 'В корзину')
+                                        }}</span>
                                 </button>
-                            </div>
-                        </div>
-                        <!-- --- Конец логики кнопок --- -->
-                    </div>
-                </div>
+                                <!-- Селектор +/- и Удаление -->
+                                <div v-else class="flex items-center justify-between space-x-2 w-full">
+                                    <div class="flex items-center border border-gray-300 rounded-full overflow-hidden">
+                                        <button @click="decreaseQuantity(product.slug)"
+                                                :disabled="loadingItems[product.slug]"
+                                                class="px-3 py-1 text-gray-600 hover:bg-gray-100 focus:outline-none disabled:opacity-50">
+                                            -
+                                        </button>
+                                        <span class="px-3 py-1 text-center font-medium text-gray-700 w-10">{{
+                                                getCartQuantity(product.slug)
+                                            }}</span>
+                                        <button @click="increaseQuantity(product.slug)"
+                                                :disabled="loadingItems[product.slug] || getCartQuantity(product.slug) >= 10"
+                                                class="px-3 py-1 text-gray-600 hover:bg-gray-100 focus:outline-none disabled:opacity-50">
+                                            +
+                                        </button>
+                                    </div>
+                                    <button
+                                        @click="removeItem(cartItemsMap[product.slug]?.cart_item_id, product.slug)"
+                                        :disabled="loadingItems[product.slug] || !cartItemsMap[product.slug]?.cart_item_id"
+                                        class="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition duration-150 ease-in-out focus:outline-none disabled:opacity-50"
+                                        title="Удалить из корзины">
+                                        <svg v-if="!loadingItems[product.slug]" class="w-5 h-5"
+                                             fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                            <path fill-rule="evenodd"
+                                                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                                  clip-rule="evenodd"></path>
+                                        </svg>
+                                        <svg v-else class="animate-spin h-5 w-5 text-red-600"
+                                             xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                                    stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor"
+                                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </template>
+                        </div> <!-- Конец гибридной логики -->
+                    </div> <!-- Конец Карточки Товара -->
+                </div> <!-- Конец Сетки -->
             </section>
             <!-- Сообщение, если нет товаров -->
             <div v-else class="text-center py-16 text-gray-500">
