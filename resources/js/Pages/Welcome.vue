@@ -202,7 +202,7 @@ export default {
                 <div v-if="featuredProducts && featuredProducts.length > 0"
                      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
                     <!-- Карточка товара -->
-                    <div v-for="product in featuredProducts" :key="product.slug"
+                    <div v-for="product in featuredProducts" :key="product.display_id"
                          class="bg-gray-50 rounded-lg shadow-md overflow-hidden p-6 flex flex-col group">
                         <!-- Картинка/Название - ссылка -->
                         <a :href="route('products.show', { product: product.slug })" class="block">
@@ -238,20 +238,20 @@ export default {
                                     'w-full font-bold py-2 px-4 rounded-full transition duration-150 ease-in-out flex items-center justify-center text-center',
                                     product.is_available === false ? 'bg-gray-300 text-gray-500 cursor-not-allowed pointer-events-none' : 'bg-emerald-500 hover:bg-emerald-600 text-white'
                                 ]">
-                                <span>{{ product.is_available === false ? 'Сегодня нет' : 'Выбрать' }}</span>
+                                <span>{{ product.is_available === false ? 'Сегодня нет' : 'Выбрать опции' }}</span>
                             </a>
                             <template v-else>
                                 <button
-                                    v-if="!isInCart(product.slug)"
-                                    @click="addItemToCart(product.slug)"
-                                    :disabled="product.is_available === false || loadingItems[product.slug]"
+                                    v-if="!isInCart(product.display_id)"
+                                    @click="addItemToCart(product.display_id)"
+                                    :disabled="product.is_available === false || loadingItems[product.display_id]"
                                     :class="[
                                       'w-full font-bold py-2 px-4 rounded-full transition duration-150 ease-in-out flex items-center justify-center',
                                       product.is_available === false ? 'bg-gray-300 text-gray-500 cursor-not-allowed' :
-                                      loadingItems[product.slug] ? 'bg-emerald-300 text-white cursor-wait' :
+                                      loadingItems[product.display_id] ? 'bg-emerald-300 text-white cursor-wait' :
                                       'bg-emerald-500 hover:bg-emerald-600 text-white'
                                    ]">
-                                    <svg v-if="product.is_available !== false && !loadingItems[product.slug]"
+                                    <svg v-if="product.is_available !== false && !loadingItems[product.display_id]"
                                          class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"
                                          xmlns="http://www.w3.org/2000/svg">
                                         <path
@@ -260,7 +260,7 @@ export default {
                                               d="M6 16a2 2 0 100 4 2 2 0 000-4zm9 0a2 2 0 100 4 2 2 0 000-4z"
                                               clip-rule="evenodd"></path>
                                     </svg>
-                                    <svg v-if="loadingItems[product.slug]"
+                                    <svg v-if="loadingItems[product.display_id]"
                                          class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
                                          xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
@@ -269,31 +269,31 @@ export default {
                                               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
                                     <span>{{
-                                            product.is_available === false ? 'Сегодня нет' : (loadingItems[product.slug] ? 'Добавляем...' : 'В корзину')
+                                            product.is_available === false ? 'Сегодня нет' : (loadingItems[product.display_id] ? 'Добавляем...' : 'В корзину')
                                         }}</span>
                                 </button>
                                 <div v-else class="flex items-center justify-between space-x-2 w-full">
                                     <div class="flex items-center border border-gray-300 rounded-full overflow-hidden">
-                                        <button @click="decreaseQuantity(product.slug)"
-                                                :disabled="loadingItems[product.slug]"
+                                        <button @click="decreaseQuantity(product.display_id)"
+                                                :disabled="loadingItems[product.display_id]"
                                                 class="px-3 py-1 text-gray-600 hover:bg-gray-100 focus:outline-none disabled:opacity-50">
                                             -
                                         </button>
                                         <span class="px-3 py-1 text-center font-medium text-gray-700 w-10">{{
-                                                getCartQuantity(product.slug)
+                                                getCartQuantity(product.display_id)
                                             }}</span>
-                                        <button @click="increaseQuantity(product.slug)"
-                                                :disabled="loadingItems[product.slug] || getCartQuantity(product.slug) >= 10"
+                                        <button @click="increaseQuantity(product.display_id)"
+                                                :disabled="loadingItems[product.display_id] || getCartQuantity(product.display_id) >= 10"
                                                 class="px-3 py-1 text-gray-600 hover:bg-gray-100 focus:outline-none disabled:opacity-50">
                                             +
                                         </button>
                                     </div>
                                     <button
-                                        @click="removeItem(cartItemsMap[product.slug]?.cart_item_id, product.slug)"
-                                        :disabled="loadingItems[product.slug] || !cartItemsMap[product.slug]?.cart_item_id"
+                                        @click="removeItem(cartItemsMap[product.display_id]?.cart_item_id, product.display_id)"
+                                        :disabled="loadingItems[product.display_id] || !cartItemsMap[product.display_id]?.cart_item_id"
                                         class="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition duration-150 ease-in-out focus:outline-none disabled:opacity-50"
                                         title="Удалить из корзины">
-                                        <svg v-if="!loadingItems[product.slug]" class="w-5 h-5"
+                                        <svg v-if="!loadingItems[product.display_id]" class="w-5 h-5"
                                              fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                                             <path fill-rule="evenodd"
                                                   d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
