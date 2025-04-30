@@ -15,15 +15,23 @@
 
                     <!-- Центральная часть: Навигация (для десктопа) -->
                     <nav class="hidden md:flex space-x-8">
+                        <!-- 1. Главная -->
                         <a :href="routeExists('home') ? route('home') : '/'"
                            class="font-medium text-gray-600 hover:text-emerald-500 transition duration-150 ease-in-out"
                            :class="{ 'text-emerald-600 border-b-2 border-emerald-500': isUrl('/') }">
                             Главная
                         </a>
+                        <!-- 2. Меню -->
                         <a :href="routeExists('menu.index') ? route('menu.index') : '/menu'"
                            class="font-medium text-gray-600 hover:text-emerald-500 transition duration-150 ease-in-out"
                            :class="{ 'text-emerald-600 border-b-2 border-emerald-500': isUrl('/menu') || isUrl('/menu/*') }">
                             Меню
+                        </a>
+                        <!-- 3. О нас -->
+                        <a :href="routeExists('about') ? route('about') : '/about'"
+                           class="font-medium text-gray-600 hover:text-emerald-500 transition duration-150 ease-in-out"
+                           :class="{ 'text-emerald-600 border-b-2 border-emerald-500': isUrl('/about') }">
+                            О нас
                         </a>
                     </nav>
 
@@ -111,12 +119,12 @@
             <!-- Мобильное меню -->
             <div v-show="mobileMenuOpen" class="md:hidden border-t border-gray-200">
                 <div class="pt-2 pb-3 space-y-1 px-2">
-                    <a :href="routeExists('home') ? route('home') : '/'"
-                       class="block px-3 py-2 rounded-md text-base font-medium"
-                       :class="isUrl('/') ? 'text-emerald-700 bg-emerald-50' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'">Главная</a>
-                    <a :href="routeExists('menu.index') ? route('menu.index') : '/menu'"
-                       class="block px-3 py-2 rounded-md text-base font-medium"
-                       :class="isUrl('/menu') || isUrl('/menu/*') ? 'text-emerald-700 bg-emerald-50' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'">Меню</a>
+                    <!-- 1. Главная -->
+                    <a :href="routeExists('home') ? route('home') : '/'" class="block px-3 py-2 rounded-md text-base font-medium" :class="isUrl('/') ? '...' : '...'">Главная</a>
+                    <!-- 2. Меню -->
+                    <a :href="routeExists('menu.index') ? route('menu.index') : '/menu'" class="block px-3 py-2 rounded-md text-base font-medium" :class="isUrl('/menu') || isUrl('/menu/*') ? '...' : '...'">Меню</a>
+                    <!-- 3. О нас -->
+                    <a :href="routeExists('about') ? route('about') : '/about'" class="block px-3 py-2 rounded-md text-base font-medium" :class="isUrl('/about') ? '...' : '...'">О нас</a>
                 </div>
                 <div class="pt-4 pb-3 border-t border-gray-200">
                     <!-- Ссылка на корзину в мобильном меню (только для авторизованных) -->

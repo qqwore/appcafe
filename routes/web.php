@@ -14,6 +14,7 @@ use App\Http\Controllers\ProfileController; // Используется для �
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\PageController;
 
 
 /*
@@ -33,6 +34,10 @@ Route::get('/', [MainController::class, 'index'])->name('home');
 
 // Страница меню
 Route::get('/menu', [MenuController::class, 'index'])->name('menu.index');
+
+Route::get('/about', [PageController::class, 'about'])->name('about');
+
+
 
 // --- Маршруты для гостей (недоступны авторизованным) ---
 Route::middleware('guest')->group(function () {
