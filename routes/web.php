@@ -2,6 +2,7 @@
 
 // --- Импорты ---
 use Illuminate\Support\Facades\Route;
+
 // Убрали Inertia, так как рендеринг в контроллерах
 // use Inertia\Inertia;
 
@@ -10,12 +11,17 @@ use App\Http\Controllers\MainController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\OrderController;
-use App\Http\Controllers\ProfileController; // Используется для профиля
+use App\Http\Controllers\ProfileController;
+
+// Используется для профиля
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PageController;
-
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\AdminOrderController;
+use App\Http\Controllers\Admin\AdminMenuStockController;
+use App\Http\Controllers\Admin\AdminStatisticsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -36,7 +42,6 @@ Route::get('/', [MainController::class, 'index'])->name('home');
 Route::get('/menu', [MenuController::class, 'index'])->name('menu.index');
 
 Route::get('/about', [PageController::class, 'about'])->name('about');
-
 
 
 // --- Маршруты для гостей (недоступны авторизованным) ---
@@ -89,3 +94,30 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'/*, 'admin' */])->grou
 // Маршрут для страницы одного продукта (используем ID)
 Route::get('/products/{product:slug}', [ProductController::class, 'show'])->name('products.show');
 // Laravel автоматически найдет Product по ID благодаря Route Model Binding
+
+
+// --- ГРУППА МАРШРУТОВ АДМИНКИ ---
+Route::prefix('admin')         // Все URL будут начинаться с /admin/...
+->name('admin.')           // Имена всех роутов будут начинаться с admin. (напр., admin.dashboard)
+->middleware(['auth', 'admin']) // Применяем middleware аутентификации И проверки админа
+->group(function () {
+
+    // Дашборд (Главная страница админки)
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Заказы
+    Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
+    Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('orders.updateStatus'); // Обновление статуса заказа
+
+    // Меню на день / Сток
+    Route::get('/menu-stock', [AdminMenuStockController::class, 'index'])->name('menu-stock.index');
+    Route::patch('/menu-stock/{product}/add', [AdminMenuStockController::class, 'addStock'])->name('menu-stock.add'); // Добавление стока
+
+    // Статистика
+    Route::get('/statistics', [AdminStatisticsController::class, 'index'])->name('statistics.index');
+
+    // Сюда можно добавить маршруты для управления пользователями, товарами, допами и т.д.
+    // Route::resource('/users', AdminUserController::class); // Пример CRUD для пользователей
+    // Route::resource('/products', AdminProductController::class); // Пример CRUD для продуктов
+
+});
