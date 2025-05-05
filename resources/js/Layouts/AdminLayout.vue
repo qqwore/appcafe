@@ -95,14 +95,15 @@ export default {
             <!-- Navigation -->
             <nav class="flex-1 overflow-y-auto py-4">
                 <ul>
-                    <!-- Используем computedNavigation -->
+                    <!-- Используем computedNavigation из setup -->
                     <li v-for="item in computedNavigation" :key="item.name">
+                        <!-- Увеличиваем размер шрифта с text-sm до text-base -->
                         <Link :href="item.href"
                               :class="[
                                   isCurrent(item.currentMatcher)
                                       ? 'bg-stone-700 text-white'
                                       : 'text-stone-300 hover:bg-stone-700 hover:text-white',
-                                  'group flex items-center px-4 py-2 text-sm font-medium'
+                                   'group flex items-center px-4 py-2.5 text-base font-medium' /* ИЗМЕНЕНО: py-2 -> py-2.5, text-sm -> text-base */
                               ]">
                             {{ item.name }}
                         </Link>
@@ -111,9 +112,9 @@ export default {
             </nav>
             <!-- Footer Links -->
             <div class="p-4 border-t border-stone-700">
-                <Link :href="routeExists('home') ? route('home') : '/'" class="text-sm text-stone-400 hover:text-emerald-400 block mb-2">Вернуться на сайт</Link>
-                <!-- Используем @click для вызова метода logout -->
-                <button @click="logout" type="button" class="text-sm text-stone-400 hover:text-red-500 w-full text-left">Выход</button>
+                <!-- Увеличиваем размер шрифта с text-sm до text-base -->
+                <Link :href="routeExists('home') ? route('home') : '/'" class="text-base text-stone-400 hover:text-emerald-400 block mb-2">Вернуться на сайт</Link>
+                <button @click="logout" type="button" class="text-base text-stone-400 hover:text-red-500 w-full text-left">Выход</button>
             </div>
         </aside>
 

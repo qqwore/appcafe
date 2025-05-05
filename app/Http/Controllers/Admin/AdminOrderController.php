@@ -68,8 +68,14 @@ class AdminOrderController extends Controller
                         'syrupExtra:id,name'
                     ]);
                 }
-            ])
-            ->orderBy('created_at', 'desc'); // Сначала новые
+            ]);
+            if ($currentTab === 'new') {
+                // Для вкладки "Новые" сортируем старые сначала
+                $ordersQuery->orderBy('created_at', 'asc');
+            } else {
+                // Для остальных вкладок (Готовы, Выполненные) сортируем новые сначала
+                $ordersQuery->orderBy('created_at', 'desc');
+            }
 
         // Применяем пагинацию
         $orders = $ordersQuery->paginate(15)->withQueryString(); // withQueryString() сохраняет параметры URL (например, ?tab=ready)
