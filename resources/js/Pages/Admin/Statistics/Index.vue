@@ -24,7 +24,7 @@ export default {
 <template>
     <Head title="Статистика"/>
     <div>
-        <h1 class="text-2xl font-semibold text-gray-700 mb-6">Статистика</h1>
+        <h1 class="text-3xl font-semibold text-gray-700 mb-6">Статистика</h1>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <!-- Карточка Заказы -->

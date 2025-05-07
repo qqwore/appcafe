@@ -111,8 +111,10 @@ Route::prefix('admin')         // Все URL будут начинаться с 
 
     // Меню на день / Сток
     Route::get('/menu-stock', [AdminMenuStockController::class, 'index'])->name('menu-stock.index');
-    Route::patch('/menu-stock/{product}/add', [AdminMenuStockController::class, 'addStock'])->name('menu-stock.add'); // Добавление стока
-
+// ИЗМЕНЕН МАРШРУТ: теперь это POST для массового обновления
+    Route::post('/menu-stock/update-multiple', [AdminMenuStockController::class, 'updateMultipleStock'])->name('menu-stock.updateMultiple');
+// НОВЫЙ МАРШРУТ для отмены
+    Route::post('/menu-stock/undo-last-update', [AdminMenuStockController::class, 'undoLastStockUpdate'])->name('menu-stock.undoLast');
     // Статистика
     Route::get('/statistics', [AdminStatisticsController::class, 'index'])->name('statistics.index');
 

@@ -119,14 +119,9 @@ class HandleInertiaRequests extends Middleware
                 'message' => $request->session()->get('message'),
                 'error' => $request->session()->get('error'),
                 'orderSuccess' => (bool)$request->session()->get('orderSuccess'),
+                'can_undo_stock_update' => (bool)$request->session()->get('can_undo_stock_update'), // Получаем из сессии
             ],
 
-            // --- Ziggy (если НЕ используете @routes в Blade) ---
-            /*
-            'ziggy' => fn () => array_merge((new \Tightenco\Ziggy\Ziggy)->toArray(), [
-                'location' => $request->url(),
-            ]),
-            */
 
         ]);
     }
