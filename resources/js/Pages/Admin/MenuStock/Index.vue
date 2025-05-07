@@ -186,7 +186,7 @@ export default {
                 @click="undoLastUpdate"
                 :disabled="isProcessing"
                 class="px-5 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-800 font-semibold rounded-md shadow-sm disabled:opacity-50 text-base">
-            {{ isProcessing ? 'Отменяем...' : 'Отменить последнее добавление' }}
+            {{ isProcessing ? 'Отменяем...' : 'Отменить последнее обновление' }}
         </button>
     </div>
 

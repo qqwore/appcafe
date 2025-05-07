@@ -88,8 +88,11 @@ class MenuController extends Controller
                     'price_prefix' => $pricePrefix,
                     'image_url' => $imageUrl,
                     'description' => $description,
-                    'is_available' => $isAvailable,
                     'has_variations' => $hasMultipleVariations,
+                    'count' => $defaultVariation->count, // Остаток
+                    'is_stock_managed' => $defaultVariation->is_stock_managed, // Флаг, что товар штучный
+// ВАЖНО: is_available зависит от is_stock_managed и count
+                    'is_available' => $defaultVariation->is_stock_managed ? ($defaultVariation->count > 0) : true,
                 ];
             })->filter()->values(); // Убираем null и сбрасываем ключи
 

@@ -1,12 +1,11 @@
 <script>
 // Используем Options API
 import AppLayout from '../Layouts/AppLayout.vue';
-import {router} from '@inertiajs/vue3'; // Импортируем router для запросов
+import {router} from '@inertiajs/vue3';
 
 export default {
     name: 'MenuPage',
     layout: AppLayout,
-    // components: { Head }, // Head не используется в шаблоне ниже
     props: {
         productsByCategory: {
             type: Object,
@@ -16,7 +15,6 @@ export default {
             type: Array,
             default: () => []
         },
-        // Убедитесь, что $page.props.cart_details передается!
     },
     data() {
         return {
@@ -26,15 +24,13 @@ export default {
         };
     },
     computed: {
-        /**
-         * Карта товаров БЕЗ ОПЦИЙ, которые уже есть в корзине.
-         */
         cartItemsMap() {
             const map = {};
             const pageCartItems = this.$page.props.cart_details?.items || [];
             pageCartItems.forEach(item => {
                 if (item.product?.id) {
                     const categoryId = this.findProductCategory(item.product.id);
+                    // Используем this.checkIfProductHasOptions для определения, простой ли товар
                     const hasOptions = this.checkIfProductHasOptions(item.product.id, categoryId);
                     if (!hasOptions) {
                         map[item.product.id] = {
@@ -46,9 +42,6 @@ export default {
             });
             return map;
         },
-        /**
-         * Возвращает категории в заданном порядке и переименовывает "Не кофе".
-         */
         sortedCategories() {
             const orderedCategories = [];
             const categoryMap = new Map(this.categories.map(cat => [cat.id, {...cat}]));
@@ -63,9 +56,6 @@ export default {
             categoryMap.forEach(category => orderedCategories.push(category));
             return orderedCategories;
         },
-        /**
-         * Возвращает продукты только для выбранной категории.
-         */
         filteredProducts() {
             if (!this.selectedCategoryId || !this.productsByCategory || typeof this.productsByCategory !== 'object') {
                 return [];
@@ -76,9 +66,6 @@ export default {
             }
             return categoryData.products;
         },
-        /**
-         * Возвращает имя выбранной категории.
-         */
         selectedCategoryName() {
             if (!this.selectedCategoryId || !this.sortedCategories) return 'Меню';
             const selectedCategory = this.sortedCategories.find(cat => cat.id === this.selectedCategoryId);
@@ -86,133 +73,81 @@ export default {
         },
     },
     methods: {
-        /**
-         * Выбирает категорию.
-         */
         selectCategory(categoryId) {
             this.selectedCategoryId = categoryId;
         },
-        /**
-         * Форматирует цену.
-         */
         formatPrice(price) {
             const numPrice = parseFloat(price);
             return !isNaN(numPrice) ? Math.floor(numPrice) : price;
         },
-        /**
-         * Определяет, есть ли у продукта опции.
-         */
         checkIfProductHasOptions(productId, categoryId) {
             if (categoryId === undefined) {
                 categoryId = this.findProductCategory(productId);
             }
             if ([3].includes(categoryId)) return true; // Кофе
-            if ([4].includes(categoryId)) { // Десерты
-                const product = this.findProductById(productId);
-                // Проверяем флаг can_add_condensed_milk ИЛИ имя
-                return product?.can_add_condensed_milk ?? (product?.name === 'Сырники');
-            }
-            return false; // Остальные
+
+            return false; // Остальные (Сытная еда (1), Напитки (2))
         },
-        /**
-         * Вспомогательный метод: находит продукт по ID.
-         */
         findProductById(productId) {
             for (const catId in this.productsByCategory) {
                 const product = this.productsByCategory[catId]?.products.find(p => p.display_id === productId);
                 if (product) return product;
             }
+            // Дополнительный поиск по $page.props, если продукт из другой категории (маловероятно для этого контекста)
+            for (const catId in this.$page.props.productsByCategory) {
+                const p = this.$page.props.productsByCategory[catId]?.products.find(prod => prod.display_id === productId);
+                if (p) return p;
+            }
             return null;
         },
-        /**
-         * Вспомогательный метод для поиска ID категории продукта.
-         */
         findProductCategory(productId) {
             const product = this.findProductById(productId);
             return product?.category_id ?? null;
         },
-        /**
-         * Проверяет, есть ли товар БЕЗ ОПЦИЙ в корзине.
-         */
         isInCart(displayId) {
             return !!this.cartItemsMap[displayId];
         },
-        /**
-         * Возвращает количество из корзины для товара БЕЗ ОПЦИЙ.
-         */
         getCartQuantity(displayId) {
             return this.cartItemsMap[displayId]?.quantity ?? 0;
         },
-        /**
-         * Добавляет 1 штуку товара БЕЗ ОПЦИЙ в корзину.
-         */
-        // resources/js/Pages/Menu.vue -> methods
-
-        addItemToCart(displayId) { // Добавляет 1 шт товара БЕЗ ОПЦИЙ
-            this.loadingItems[displayId] = true;
+        addItemToCart(product) {
+            // Проверка доступности для штучных товаров перед добавлением
+            if (product.is_stock_managed && product.count <= 0) {
+                // alert(`Товара "${product.name}" нет в наличии.`); // Можно раскомментировать для отладки
+                console.warn(`Attempted to add out of stock item: ${product.name}`);
+                return; // Не добавляем, если нет в наличии и управляется стоком
+            }
+            this.loadingItems[product.display_id] = true;
             router.post(route('cart.add'), {
-                product_id: displayId,
+                product_id: product.display_id,
                 quantity: 1,
-                options: {} // Пустые опции
+                options: {} // Пустые опции для товаров без выбора
             }, {
                 preserveScroll: true,
-                // --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
-                // preserveState: true, // Можно установить true, чтобы сохранить другое состояние
-                // ИЛИ просто убрать эту строку (по умолчанию false)
-                // Главное, чтобы НЕ БЫЛО preserveState: false
-                // --- КОНЕЦ ИЗМЕНЕНИЯ ---
                 onSuccess: () => {
                     console.log('Simple product added!');
-                    // НЕ удаляем loadingItems здесь, т.к. ждем обновления props
-                    // Vue DevTools покажет обновление cartItemsMap, и v-if/v-else сработают
                 },
                 onError: errors => {
                     console.error('Failed to add simple product:', errors);
-                    // Разблокируем кнопку при ошибке
-                    delete this.loadingItems[displayId];
                 },
                 onFinish: () => {
-                    // Разблокируем кнопку ПОСЛЕ завершения запроса (успех или ошибка)
-                    // Это важно, т.к. onSuccess может не сработать при определенных редиректах
-                    // (хотя с preserveScroll=true обычно срабатывает)
-                    // Мы УЖЕ удаляем его в onError, так что здесь может быть лишним,
-                    // но оставим для надежности на случай других ошибок.
-                    // Если будут проблемы с двойным удалением - убрать отсюда.
-                    delete this.loadingItems[displayId];
+                    delete this.loadingItems[product.display_id];
                 }
             });
         },
-        /**
-         * Увеличивает количество товара БЕЗ ОПЦИЙ В КОРЗИНЕ.
-         */
-        increaseQuantity(displayId) {
-            const currentItem = this.cartItemsMap[displayId];
+        increaseQuantity(product) {
+            const currentItem = this.cartItemsMap[product.display_id];
             if (!currentItem) return;
             const newQuantity = currentItem.quantity + 1;
-            if (newQuantity <= 10) {
-                this.loadingItems[displayId] = true;
-                router.patch(route('cart.update', {cart_item: currentItem.cart_item_id}), {
-                    quantity: newQuantity
-                }, {
-                    preserveScroll: true, preserveState: true,
-                    onSuccess: () => {
-                    }, onError: errors => {
-                    },
-                    onFinish: () => {
-                        delete this.loadingItems[displayId];
-                    }
-                });
+
+            let maxAllowed = 10; // Общий максимум
+            if (product.is_stock_managed) {
+                // Максимум - это остаток на складе, но не более 10
+                maxAllowed = Math.min(10, product.count);
             }
-        },
-        /**
-         * Уменьшает количество товара БЕЗ ОПЦИЙ В КОРЗИНЕ. Если 0 - удаляет.
-         */
-        decreaseQuantity(displayId) {
-            const currentItem = this.cartItemsMap[displayId];
-            if (!currentItem) return;
-            const newQuantity = currentItem.quantity - 1;
-            if (newQuantity >= 1) {
-                this.loadingItems[displayId] = true;
+
+            if (newQuantity <= maxAllowed) {
+                this.loadingItems[product.display_id] = true;
                 router.patch(route('cart.update', {cart_item: currentItem.cart_item_id}), {
                     quantity: newQuantity
                 }, {
@@ -221,16 +156,39 @@ export default {
                     }, onError: errors => {
                     },
                     onFinish: () => {
-                        delete this.loadingItems[displayId];
+                        delete this.loadingItems[product.display_id];
                     }
                 });
             } else {
-                this.removeItem(currentItem.cart_item_id, displayId);
+                // Сообщение, если достигнут лимит (склада или общий)
+                if (product.is_stock_managed && newQuantity > product.count) {
+                    alert(`Максимально доступно ${product.count} шт. товара "${product.name}".`);
+                } else {
+                    console.warn(`Cannot add more than 10 items for product ID: ${product.display_id}`);
+                }
             }
         },
-        /**
-         * Удаляет товар БЕЗ ОПЦИЙ из корзины.
-         */
+        decreaseQuantity(product) { // Принимаем product
+            const currentItem = this.cartItemsMap[product.display_id];
+            if (!currentItem) return;
+            const newQuantity = currentItem.quantity - 1;
+            if (newQuantity >= 1) {
+                this.loadingItems[product.display_id] = true;
+                router.patch(route('cart.update', {cart_item: currentItem.cart_item_id}), {
+                    quantity: newQuantity
+                }, {
+                    preserveScroll: true, preserveState: true,
+                    onSuccess: () => {
+                    }, onError: errors => {
+                    },
+                    onFinish: () => {
+                        delete this.loadingItems[product.display_id];
+                    }
+                });
+            } else {
+                this.removeItem(currentItem.cart_item_id, product.display_id);
+            }
+        },
         removeItem(cartItemId, displayId) {
             if (!cartItemId) return;
             this.loadingItems[displayId] = true;
@@ -285,7 +243,6 @@ export default {
                     <div v-for="product in filteredProducts" :key="product.display_id"
                          class="bg-gray-50 rounded-lg shadow-md overflow-hidden p-6 flex flex-col group">
 
-                        <!-- Картинка/Название - всегда ссылка -->
                         <a :href="route('products.show', { product: product.slug })" class="block">
                             <div class="relative mb-4 h-48 bg-gray-100 rounded-md overflow-hidden">
                                 <img v-if="product.image_url" :src="product.image_url" :alt="product.name"
@@ -309,33 +266,42 @@ export default {
                             <p v-if="product.description" class="text-sm text-gray-500 mt-1">{{
                                     product.description
                                 }}</p>
+
+                            <!-- Отображение остатка для штучных товаров, ЕСЛИ ОН БОЛЬШЕ 0 -->
+                            <p v-if="product.is_stock_managed && product.count > 0"
+                               class="text-xs text-emerald-600 mt-1">
+                                В наличии: {{ product.count }} шт.
+                            </p>
+                            <!-- Надпись "Нет в наличии" отсюда убрана, она будет на кнопке -->
                         </div>
 
                         <!-- Гибридная логика кнопок -->
                         <div class="mt-auto h-10 flex items-center">
-                            <!-- Вариант 1: Кнопка "Выбрать опции" -->
+                            <!-- Вариант 1: Кнопка "Выбрать опции" (для товаров с опциями) -->
                             <a v-if="checkIfProductHasOptions(product.display_id, product.category_id)"
                                :href="route('products.show', { product: product.slug })"
                                :class="[
                         'w-full font-bold py-2 px-4 rounded-full transition duration-150 ease-in-out flex items-center justify-center text-center',
-                        product.is_available === false ? 'bg-gray-300 text-gray-500 cursor-not-allowed pointer-events-none' : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                         // Используем product.is_available, которое учитывает сток для штучных
+                        !product.is_available ? 'bg-gray-300 text-gray-500 cursor-not-allowed pointer-events-none' : 'bg-emerald-500 hover:bg-emerald-600 text-white'
                     ]">
-                                <span>{{ product.is_available === false ? 'Сегодня нет' : 'Выбрать' }}</span>
+                                <span>{{ !product.is_available ? 'Нет в наличии' : 'Выбрать' }}</span>
                             </a>
-                            <!-- Вариант 2: Старая логика для товаров без опций -->
+
+                            <!-- Вариант 2: Логика для товаров БЕЗ опций -->
                             <template v-else>
-                                <!-- Кнопка "В корзину" -->
+                                <!-- Кнопка "В корзину" или "Нет в наличии" -->
                                 <button
                                     v-if="!isInCart(product.display_id)"
-                                    @click="addItemToCart(product.display_id)"
-                                    :disabled="product.is_available === false || loadingItems[product.display_id]"
+                                    @click="addItemToCart(product)"
+                                    :disabled="!product.is_available || loadingItems[product.display_id]"
                                     :class="[
-                          'w-full font-bold py-2 px-4 rounded-full transition duration-150 ease-in-out flex items-center justify-center',
-                          product.is_available === false ? 'bg-gray-300 text-gray-500 cursor-not-allowed' :
-                          loadingItems[product.display_id] ? 'bg-emerald-300 text-white cursor-wait' :
-                          'bg-emerald-500 hover:bg-emerald-600 text-white'
-                       ]">
-                                    <svg v-if="product.is_available !== false && !loadingItems[product.display_id]"
+                                'w-full font-bold py-2 px-4 rounded-full transition duration-150 ease-in-out flex items-center justify-center',
+                                !product.is_available ? 'bg-gray-300 text-gray-500 cursor-not-allowed' :
+                                loadingItems[product.display_id] ? 'bg-emerald-300 text-white cursor-wait' :
+                                'bg-emerald-500 hover:bg-emerald-600 text-white'
+                                ]">
+                                    <svg v-if="product.is_available && !loadingItems[product.display_id]"
                                          class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"
                                          xmlns="http://www.w3.org/2000/svg">
                                         <path
@@ -353,13 +319,13 @@ export default {
                                               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
                                     <span>{{
-                                            product.is_available === false ? 'Сегодня нет' : (loadingItems[product.display_id] ? 'Добавляем...' : 'В корзину')
+                                            !product.is_available ? 'Нет в наличии' : (loadingItems[product.display_id] ? 'Добавляем...' : 'В корзину')
                                         }}</span>
                                 </button>
                                 <!-- Селектор +/- и Удаление -->
                                 <div v-else class="flex items-center justify-between space-x-2 w-full">
                                     <div class="flex items-center border border-gray-300 rounded-full overflow-hidden">
-                                        <button @click="decreaseQuantity(product.display_id)"
+                                        <button @click="decreaseQuantity(product)"
                                                 :disabled="loadingItems[product.display_id]"
                                                 class="px-3 py-1 text-gray-600 hover:bg-gray-100 focus:outline-none disabled:opacity-50">
                                             -
@@ -367,8 +333,8 @@ export default {
                                         <span class="px-3 py-1 text-center font-medium text-gray-700 w-10">{{
                                                 getCartQuantity(product.display_id)
                                             }}</span>
-                                        <button @click="increaseQuantity(product.display_id)"
-                                                :disabled="loadingItems[product.display_id] || getCartQuantity(product.display_id) >= 10"
+                                        <button @click="increaseQuantity(product)"
+                                                :disabled="loadingItems[product.display_id] || getCartQuantity(product.display_id) >= 10 || (product.is_stock_managed && getCartQuantity(product.display_id) >= product.count)"
                                                 class="px-3 py-1 text-gray-600 hover:bg-gray-100 focus:outline-none disabled:opacity-50">
                                             +
                                         </button>
@@ -379,7 +345,7 @@ export default {
                                         class="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition duration-150 ease-in-out focus:outline-none disabled:opacity-50"
                                         title="Удалить из корзины">
                                         <svg v-if="!loadingItems[product.display_id]" class="w-5 h-5"
-                                             fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                             fill="currentColor" viewBox="0 0 20 20">
                                             <path fill-rule="evenodd"
                                                   d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
                                                   clip-rule="evenodd"></path>

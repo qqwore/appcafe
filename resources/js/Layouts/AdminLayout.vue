@@ -13,7 +13,7 @@ export default {
         return {
             navigation: [
                 {name: 'Статистика', hrefName: 'admin.statistics.index', currentMatcher: '/admin/statistics'},
-                {name: 'Управление запасами', hrefName: 'admin.menu-stock.index', currentMatcher: '/admin/menu-stock'},
+                {name: 'Управление складом', hrefName: 'admin.menu-stock.index', currentMatcher: '/admin/menu-stock'},
                 {name: 'Заказы', hrefName: 'admin.orders.index', currentMatcher: '/admin/orders'},
                 // { name: 'Пользователи', hrefName: 'admin.users.index', currentMatcher: '/admin/users' },
                 // { name: 'Допы', hrefName: 'admin.extras.index', currentMatcher: '/admin/extras' },

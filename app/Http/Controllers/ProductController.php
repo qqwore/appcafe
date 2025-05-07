@@ -11,15 +11,16 @@ use Illuminate\Support\Facades\Cache;
 
 class ProductController extends Controller
 {
-    private $arr;
+    // Свойство $arr не нужно, если вы не используете его вне метода
+    // private $arr;
 
     /**
      * Отображение страницы одного продукта.
      */
-    public function show(Product $product): InertiaResponse
+    public function show(Product $product): InertiaResponse // $product - это вариация, на которую кликнули
     {
-        // Загружаем основные отношения для ГЛАВНОГО продукта
-        $product->load(['category', 'size', 'kpfc']); // <-- УБРАЛИ 'variations.size'
+        // Загружаем отношения для переданного продукта (вариации)
+        $product->load(['category', 'size', 'kpfc']);
 
         // Получаем доступные допы
         $extras = Cache::remember('available_extras', now()->addHour(), function () {
@@ -27,18 +28,20 @@ class ProductController extends Controller
         });
         $availableExtras = [
             'milks' => $extras->whereIn('id', [6])->values()->toArray(),
-            'syrups' => $extras->whereIn('id', range(7, 14))->values()->toArray(), // Используем range для ID сиропов
+            'syrups' => $extras->whereIn('id', range(7, 14))->values()->toArray(),
         ];
 
-        // --- ПОЛУЧАЕМ ВАРИАЦИИ ЧЕРЕЗ ACCESSOR ---
-        // Аксессор $product->variations уже должен содержать коллекцию
-        // моделей Product с загруженным отношением 'size' (как мы определили в модели)
-        $variationsData = $product->variations; // Просто обращаемся как к свойству
-        // ----------------------------------------
+        // --- ПОЛУЧАЕМ ВСЕ ВАРИАЦИИ ЭТОГО ПРОДУКТА ПО ИМЕНИ И ЗАГРУЖАЕМ ДЛЯ НИХ ДАННЫЕ ---
+        $allVariationsOfProduct = Product::where('name', $product->name) // Ищем все продукты с таким же именем
+        ->with(['size']) // Загружаем размер для каждой вариации
+        ->orderBy('size_id')
+            ->get(); // Получаем коллекцию всех вариаций
+        // ---------------------------------------------------------------------------
 
         // Формируем данные для Vue
-        $this->arr = [
-            'id' => $product->id,
+        // Используем $product (тот, что пришел в метод) для основных данных
+        $productDataForVue = [
+            'id' => $product->id, // ID текущей вариации (для начального выбора размера)
             'name' => $product->name,
             'description' => $product->description,
             'image_url' => $product->photo ? asset($product->photo) : null,
@@ -54,20 +57,30 @@ class ProductController extends Controller
             'can_add_milk' => $product->can_add_milk,
             'can_add_syrup' => $product->can_add_syrup,
             'can_add_condensed_milk' => $product->can_add_condensed_milk,
-            // --- ПЕРЕДАЕМ ДАННЫЕ ВАРИАЦИЙ ИЗ АКСЕССОРА ---
-            'variations' => $variationsData->map(function ($variation) {
+            // Общий флаг управления стоком для этого "концептуального" продукта
+            // Берем у текущей вариации, т.к. он должен быть одинаков для всех вариаций одного товара
+            'is_stock_managed_concept' => $product->is_stock_managed,
+
+            // Передаем все вариации (размеры) этого продукта с их остатками и доступностью
+            // Передаем $product (основной) в замыкание через use
+            'variations' => $allVariationsOfProduct->map(function ($variation) use ($product) {
+                $isStockManaged = $variation->is_stock_managed;
                 return [
-                    'id' => $variation->id, // ID вариации
-                    'size_name' => $variation->size?->volume ?? 'Стандарт', // Имя размера (уже загружено аксессором)
-                    'price' => $variation->price, // Цена вариации
+                    'id' => $variation->id,
+                    'size_name' => $variation->size?->volume ?? 'Стандарт',
+                    'price' => $variation->price,
+                    // Картинка для КАЖДОЙ вариации.
+                    // Если у вариации нет своего фото, ИСПОЛЬЗУЕМ ФОТО ОСНОВНОГО ПРОДУКТА (на который кликнули)
+                    'image_url' => $variation->photo ? asset($variation->photo) : ($product->photo ? asset($product->photo) : null),
+                    'count' => $variation->count,
+                    'is_stock_managed' => $isStockManaged,
+                    'is_available' => $isStockManaged ? ($variation->count > 0) : true,
                 ];
             }),
-            // ---------------------------------------------
         ];
-        $productData = $this->arr;
 
         return Inertia::render('Product/Show', [
-            'product' => $productData,
+            'product' => $productDataForVue,
             'availableExtras' => $availableExtras,
         ]);
     }

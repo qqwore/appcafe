@@ -20,7 +20,7 @@ class AdminMenuStockController extends Controller
     public function index(): Response
     {
         // Получаем продукты, для которых ведется учет стока
-        $stockableProducts = Product::whereIn('category_id', [1, 4]) // Сытная еда и Десерты
+        $stockableProducts = Product::whereIn('category_id', [1, 2, 4]) // Сытная еда и Десерты
         // ->where('name', '!=', 'Сырники')
         ->select('id', 'name', 'count')
             ->orderBy('name')
@@ -68,12 +68,12 @@ class AdminMenuStockController extends Controller
                 Session::forget(['last_stock_update', 'can_undo_stock_update']);
             }
 
-            return redirect()->back()->with('message', "Сток успешно обновлен.");
+            return redirect()->back()->with('message', "Информация о складе успешно обновлена.");
 
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('Error updating multiple stock: ' . $e->getMessage());
-            return redirect()->back()->withErrors(['general' => 'Ошибка при обновлении стока.']);
+            return redirect()->back()->withErrors(['general' => 'Ошибка при обновлении информации.']);
         }
     }
 
@@ -106,12 +106,12 @@ class AdminMenuStockController extends Controller
             Session::forget('can_undo_stock_update'); // Также удаляем флаг
             // --- КОНЕЦ ИЗМЕНЕНИЯ ---
 
-            return redirect()->back()->with('message', "Последнее обновление стока отменено.");
+            return redirect()->back()->with('message', "Последнее обновление склада отменено.");
 
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('Error undoing stock update: ' . $e->getMessage());
-            return redirect()->back()->withErrors(['general' => 'Ошибка при отмене обновления стока.']);
+            return redirect()->back()->withErrors(['general' => 'Ошибка при отмене обновления.']);
         }
     }
 }

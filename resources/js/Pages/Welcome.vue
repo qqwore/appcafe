@@ -1,41 +1,30 @@
 <script>
-// Используем Options API
 import AppLayout from '../Layouts/AppLayout.vue';
-import {router} from '@inertiajs/vue3'; // Для отправки в корзину
+import {router} from '@inertiajs/vue3';
 
 export default {
     name: 'Welcome',
     layout: AppLayout,
     props: {
-        // Ожидаем массив избранных продуктов
         featuredProducts: {
             type: Array,
             default: () => []
         }
-        // Убедитесь, что пропс cart_details передается и сюда
-        // cart_details: Object,
+        // Убедитесь, что $page.props.cart_details.items передается из HandleInertiaRequests
     },
     data() {
         return {
-            // Отслеживание состояния загрузки
             loadingItems: {}, // { display_id: true/false }
         };
     },
     computed: {
-        /**
-         * Карта товаров БЕЗ ОПЦИЙ, которые уже есть в корзине.
-         */
         cartItemsMap() {
             const map = {};
             const pageCartItems = this.$page.props.cart_details?.items || [];
             pageCartItems.forEach(item => {
                 if (item.product?.id) {
-                    // Определяем, есть ли у этого товара опции
-                    const product = this.featuredProducts.find(p => p.display_id === item.product.id);
-                    const hasOptions = product ? this.checkIfProductHasOptions(product) : false;
-
-                    // Добавляем в карту только если НЕТ опций
-                    if (!hasOptions) {
+                    const productInFeatured = this.featuredProducts.find(p => p.display_id === item.product.id);
+                    if (productInFeatured && !this.checkIfProductHasOptions(productInFeatured.display_id, productInFeatured.category_id)) {
                         map[item.product.id] = {
                             cart_item_id: item.id,
                             quantity: item.quantity
@@ -47,99 +36,105 @@ export default {
         }
     },
     methods: {
-        /**
-         * Форматирует цену.
-         */
         formatPrice(price) {
             const numPrice = parseFloat(price);
             return !isNaN(numPrice) ? Math.floor(numPrice) : price;
         },
+        checkIfProductHasOptions(productId, categoryId) {
+            if (categoryId === undefined) { // Пытаемся найти категорию, если не передана
+                const product = this.featuredProducts.find(p => p.display_id === productId);
+                categoryId = product?.category_id;
+            }
 
-        /**
-         * Определяет, есть ли у продукта опции (по флагам или вариациям).
-         */
-        checkIfProductHasOptions(product) {
-            if (!product) return false;
-            // Проверяем флаги, переданные из контроллера
-            return product.can_add_milk ||
-                product.can_add_syrup ||
-                // product.can_add_sugar || // Сахар обычно не считаем опцией для этой кнопки
-                product.can_add_cinnamon ||
-                product.can_add_condensed_milk ||
-                (product.variations && product.variations.length > 1); // Проверяем наличие вариаций размера
+            if ([3].includes(categoryId)) { // Кофе
+                return true;
+            }
+            return false;
         },
-
-        // --- Методы для товаров БЕЗ опций ---
         isInCart(displayId) {
             return !!this.cartItemsMap[displayId];
         },
         getCartQuantity(displayId) {
             return this.cartItemsMap[displayId]?.quantity ?? 0;
         },
-        addItemToCart(displayId) {
-            this.loadingItems[displayId] = true;
+        addItemToCart(product) {
+            if (product.is_stock_managed && product.count <= 0) {
+                alert(`Товара "${product.name}" нет в наличии.`);
+                return;
+            }
+            this.loadingItems[product.display_id] = true;
             router.post(route('cart.add'), {
-                product_id: displayId,
+                product_id: product.display_id,
                 quantity: 1,
-                options: {}
+                options: {} // Пустые опции для товаров без них
             }, {
                 preserveScroll: true,
                 onSuccess: () => {
-                    console.log('Simple product added from Welcome!');
+                    console.log('Welcome: Simple product added!');
                 },
                 onError: errors => {
-                    console.error('Failed to add simple product from Welcome:', errors);
-                    alert('Ошибка добавления');
+                    console.error('Welcome: Failed to add simple product:', errors);
+                    alert('Не удалось добавить товар. Ошибка: ' + JSON.stringify(errors));
                 },
                 onFinish: () => {
-                    delete this.loadingItems[displayId];
+                    delete this.loadingItems[product.display_id];
                 }
             });
         },
-        increaseQuantity(displayId) {
-            const currentItem = this.cartItemsMap[displayId];
+        increaseQuantity(product) {
+            const currentItem = this.cartItemsMap[product.display_id];
             if (!currentItem) return;
             const newQuantity = currentItem.quantity + 1;
-            if (newQuantity <= 10) {
-                this.loadingItems[displayId] = true;
-                router.patch(route('cart.update', {cart_item: currentItem.cart_item_id}), {
-                    quantity: newQuantity
-                }, {
-                    preserveScroll: true, preserveState: true,
-                    onSuccess: () => {
-                        console.log('Welcome: Quantity updated')
-                    },
-                    onError: errors => {
-                        console.error('Welcome: Quantity update failed:', errors);
-                    },
-                    onFinish: () => {
-                        delete this.loadingItems[displayId];
-                    }
-                });
+
+            if (product.is_stock_managed && newQuantity > product.count) {
+                alert(`Максимально доступно ${product.count} шт. товара "${product.name}".`);
+                return;
             }
+            if (newQuantity > 10) {
+                console.warn(`Cannot add more than 10 items for product ID: ${product.display_id}`);
+                return;
+            }
+
+            this.loadingItems[product.display_id] = true;
+            router.patch(route('cart.update', {cart_item: currentItem.cart_item_id}), {
+                quantity: newQuantity
+            }, {
+                preserveScroll: true,
+                preserveState: true, // Можно сохранить состояние, т.к. это не полная перезагрузка
+                onSuccess: () => {
+                    console.log(`Welcome: Quantity updated to ${newQuantity}`);
+                },
+                onError: errors => {
+                    console.error('Welcome: Quantity update failed:', errors);
+                },
+                onFinish: () => {
+                    delete this.loadingItems[product.display_id];
+                }
+            });
         },
-        decreaseQuantity(displayId) {
-            const currentItem = this.cartItemsMap[displayId];
+        decreaseQuantity(product) {
+            const currentItem = this.cartItemsMap[product.display_id];
             if (!currentItem) return;
             const newQuantity = currentItem.quantity - 1;
             if (newQuantity >= 1) {
-                this.loadingItems[displayId] = true;
+                this.loadingItems[product.display_id] = true;
                 router.patch(route('cart.update', {cart_item: currentItem.cart_item_id}), {
                     quantity: newQuantity
                 }, {
-                    preserveScroll: true, preserveState: true,
+                    preserveScroll: true,
+                    preserveState: true,
                     onSuccess: () => {
-                        console.log('Welcome: Quantity updated')
+                        console.log(`Welcome: Quantity updated to ${newQuantity}`);
                     },
                     onError: errors => {
                         console.error('Welcome: Quantity update failed:', errors);
                     },
                     onFinish: () => {
-                        delete this.loadingItems[displayId];
+                        delete this.loadingItems[product.display_id];
                     }
                 });
             } else {
-                this.removeItem(currentItem.cart_item_id, displayId);
+                this.removeItem(currentItem.cart_item_id, product.display_id);
             }
         },
         removeItem(cartItemId, displayId) {
@@ -151,11 +146,11 @@ export default {
             router.delete(route('cart.destroy', {cart_item: cartItemId}), {
                 preserveScroll: true,
                 onSuccess: () => {
-                    console.log(`Welcome: Item ${cartItemId} removed`)
+                    console.log(`Welcome: Item ${cartItemId} removed`);
                 },
                 onError: errors => {
                     console.error('Welcome: Item remove failed:', errors);
-                    alert('Ошибка удаления');
+                    alert('Не удалось удалить товар. Ошибка: ' + JSON.stringify(errors));
                 },
                 onFinish: () => {
                     delete this.loadingItems[displayId];
@@ -201,10 +196,8 @@ export default {
                 </h2>
                 <div v-if="featuredProducts && featuredProducts.length > 0"
                      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                    <!-- Карточка товара -->
                     <div v-for="product in featuredProducts" :key="product.display_id"
                          class="bg-gray-50 rounded-lg shadow-md overflow-hidden p-6 flex flex-col group">
-                        <!-- Картинка/Название - ссылка -->
                         <a :href="route('products.show', { product: product.slug })" class="block">
                             <div class="relative mb-4 h-48 bg-gray-100 rounded-md overflow-hidden">
                                 <img v-if="product.image_url" :src="product.image_url" :alt="product.name"
@@ -225,33 +218,41 @@ export default {
                             </h3>
                             <p class="text-lg font-bold text-gray-700 mb-4">{{ product.price_prefix }}
                                 {{ formatPrice(product.min_price) }} ₽</p>
-                            <p v-if="product.description" class="text-sm text-gray-500 mt-1">
+                            <p v-if="product.is_stock_managed && product.is_available"
+                               class="text-xs text-emerald-600 mt-1">
+                                В наличии: {{ product.count }} шт.
+                            </p>
+                            <p v-if="product.is_stock_managed && !product.is_available"
+                               class="text-xs text-red-500 mt-1">
+                                Нет в наличии
+                            </p>
+                            <p v-if="product.description && !(product.is_stock_managed && product.is_available)"
+                               class="text-sm text-gray-500 mt-1">
                                 {{ product.description }}
                             </p>
                         </div>
 
-                        <!-- Гибридная логика кнопок -->
                         <div class="mt-auto h-10 flex items-center">
-                            <a v-if="checkIfProductHasOptions(product)"
+                            <a v-if="checkIfProductHasOptions(product.display_id, product.category_id)"
                                :href="route('products.show', { product: product.slug })"
                                :class="[
                                     'w-full font-bold py-2 px-4 rounded-full transition duration-150 ease-in-out flex items-center justify-center text-center',
-                                    product.is_available === false ? 'bg-gray-300 text-gray-500 cursor-not-allowed pointer-events-none' : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                                    !product.is_available ? 'bg-gray-300 text-gray-500 cursor-not-allowed pointer-events-none' : 'bg-emerald-500 hover:bg-emerald-600 text-white'
                                 ]">
-                                <span>{{ product.is_available === false ? 'Сегодня нет' : 'Выбрать опции' }}</span>
+                                <span>{{ !product.is_available ? 'Нет в наличии' : 'Выбрать' }}</span>
                             </a>
                             <template v-else>
                                 <button
                                     v-if="!isInCart(product.display_id)"
-                                    @click="addItemToCart(product.display_id)"
-                                    :disabled="product.is_available === false || loadingItems[product.display_id]"
+                                    @click="addItemToCart(product)"
+                                    :disabled="!product.is_available || loadingItems[product.display_id]"
                                     :class="[
                                       'w-full font-bold py-2 px-4 rounded-full transition duration-150 ease-in-out flex items-center justify-center',
-                                      product.is_available === false ? 'bg-gray-300 text-gray-500 cursor-not-allowed' :
+                                      !product.is_available ? 'bg-gray-300 text-gray-500 cursor-not-allowed' :
                                       loadingItems[product.display_id] ? 'bg-emerald-300 text-white cursor-wait' :
                                       'bg-emerald-500 hover:bg-emerald-600 text-white'
                                    ]">
-                                    <svg v-if="product.is_available !== false && !loadingItems[product.display_id]"
+                                    <svg v-if="product.is_available && !loadingItems[product.display_id]"
                                          class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"
                                          xmlns="http://www.w3.org/2000/svg">
                                         <path
@@ -269,12 +270,12 @@ export default {
                                               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
                                     <span>{{
-                                            product.is_available === false ? 'Сегодня нет' : (loadingItems[product.display_id] ? 'Добавляем...' : 'В корзину')
+                                            !product.is_available ? 'Нет в наличии' : (loadingItems[product.display_id] ? 'Добавляем...' : 'В корзину')
                                         }}</span>
                                 </button>
                                 <div v-else class="flex items-center justify-between space-x-2 w-full">
                                     <div class="flex items-center border border-gray-300 rounded-full overflow-hidden">
-                                        <button @click="decreaseQuantity(product.display_id)"
+                                        <button @click="decreaseQuantity(product)"
                                                 :disabled="loadingItems[product.display_id]"
                                                 class="px-3 py-1 text-gray-600 hover:bg-gray-100 focus:outline-none disabled:opacity-50">
                                             -
@@ -282,8 +283,8 @@ export default {
                                         <span class="px-3 py-1 text-center font-medium text-gray-700 w-10">{{
                                                 getCartQuantity(product.display_id)
                                             }}</span>
-                                        <button @click="increaseQuantity(product.display_id)"
-                                                :disabled="loadingItems[product.display_id] || getCartQuantity(product.display_id) >= 10"
+                                        <button @click="increaseQuantity(product)"
+                                                :disabled="loadingItems[product.display_id] || getCartQuantity(product.display_id) >= 10 || (product.is_stock_managed && getCartQuantity(product.display_id) >= product.count)"
                                                 class="px-3 py-1 text-gray-600 hover:bg-gray-100 focus:outline-none disabled:opacity-50">
                                             +
                                         </button>
@@ -294,7 +295,7 @@ export default {
                                         class="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition duration-150 ease-in-out focus:outline-none disabled:opacity-50"
                                         title="Удалить из корзины">
                                         <svg v-if="!loadingItems[product.display_id]" class="w-5 h-5"
-                                             fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                             fill="currentColor" viewBox="0 0 20 20">
                                             <path fill-rule="evenodd"
                                                   d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
                                                   clip-rule="evenodd"></path>
@@ -315,12 +316,12 @@ export default {
                 <div v-else class="text-center text-gray-500">
                     Нет избранных товаров для отображения.
                 </div>
-
                 <div class="mt-12 text-center">
                     <a href="/menu"
                        class="inline-flex items-center bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold px-6 py-3 rounded-full transition duration-150 ease-in-out">
                         Подробнее
-                        <svg class="w-5 h-5 ml-2" fill="currentColor" viewBox="0 0 20 20">
+                        <svg class="w-5 h-5 ml-2" fill="currentColor" viewBox="0 0 20 20"
+                             xmlns="http://www.w3.org/2000/svg">
                             <path fill-rule="evenodd"
                                   d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"
                                   clip-rule="evenodd"></path>
@@ -330,6 +331,7 @@ export default {
             </div>
         </section>
 
+        <!-- Секция 3: Карта и адрес -->
         <section class="py-16 lg:py-24 bg-white">
             <div
                 class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
@@ -349,7 +351,6 @@ export default {
                 </div>
             </div>
         </section>
-
     </div>
 </template>
 
