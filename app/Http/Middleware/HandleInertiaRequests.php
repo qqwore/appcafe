@@ -64,6 +64,7 @@ class HandleInertiaRequests extends Middleware
                     'name' => $user->name,
                     'email' => $user->email,
                     'phone' => $user->phone,
+                    'is_admin' => (bool) Auth::user()->is_admin, // (bool) для явного преобразования
                 ] : null,
             ],
 

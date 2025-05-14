@@ -178,9 +178,9 @@ export default {
 </script>
 
 <template>
-    <Head title="Меню на день (Сток)"/>
+    <Head title="Управление складом"/>
     <div class="flex justify-between items-center mb-8">
-        <h1 class="text-3xl font-semibold text-gray-700">Наличие продуктов</h1>
+        <h1 class="text-3xl font-semibold text-gray-700">Наличие счётных продуктов</h1>
         <!-- Кнопка "Отменить" (появляется после обновления) -->
         <button v-if="canUndo"
                 @click="undoLastUpdate"

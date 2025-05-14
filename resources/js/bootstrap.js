@@ -9,6 +9,33 @@ window.axios = axios;
 
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
+// --- Регистрация компонентов Chart.js ---
+import {
+    Chart as ChartJS,
+    Title,
+    Tooltip,
+    Legend,
+    LineElement,
+    CategoryScale, // Для оси X (категории/даты)
+    LinearScale,   // Для оси Y (числовые значения)
+    PointElement,  // Для точек на линии
+    BarElement,    // Если будете использовать столбчатые диаграммы
+    ArcElement     // Для круговых диаграмм
+} from 'chart.js';
+
+ChartJS.register(
+    Title,
+    Tooltip,
+    Legend,
+    LineElement,
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    BarElement,
+    ArcElement
+);
+// --- Конец регистрации Chart.js ---
+
 /**
  * Echo exposes an expressive API for subscribing to channels and listening
  * for events that are broadcast by Laravel. Echo and event broadcasting

@@ -9,7 +9,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException; // Для обработки ошибок аутентификации
 use Inertia\Inertia; // <-- Импортируйте Inertia
+use App\Providers\RouteServiceProvider;
 use Inertia\Response as InertiaResponse; // <-- Импортируйте Inertia Response
+
 
 class AuthenticatedSessionController extends Controller
 {
@@ -36,34 +38,55 @@ class AuthenticatedSessionController extends Controller
      * @return RedirectResponse
      * @throws ValidationException
      */
-    public function store(Request $request): RedirectResponse // <-- Используйте ваш Form Request или простой Request
+    // app/Http/Controllers/Auth/AuthenticatedSessionController.php -> store()
+    public function store(Request $request): RedirectResponse // Замените LoginRequest на Request
     {
-        // 1. Валидация данных (можно вынести в Form Request)
-        $credentials = $request->validate([
-            'phone' => ['required', 'string', 'max:20'], // <-- Валидация телефона
-            'password' => ['required', 'string'],
-        ]);
+        // Кастомные сообщения
+        $messages = [
+            'phone.required' => 'Поле "Телефон" обязательно для заполнения.',
+            // 'email.required' => 'Поле "Email" обязательно для заполнения.',
+            // 'email.email'    => 'Введите корректный Email.',
+            'password.required' => 'Поле "Пароль" обязательно для заполнения.',
+            // Сообщение для неудачной попытки входа можно оставить стандартным или кастомизировать
+        ];
 
-        // 2. Попытка аутентификации
-        // $request->boolean('remember') получает значение чекбокса 'remember me'
-        if (! Auth::attempt($credentials, $request->boolean('remember'))) {
-            // Если аутентификация не удалась, выбрасываем ValidationException,
-            // которое Laravel автоматически обработает и вернет ошибки в Inertia
+        // Валидация
+        $credentials = $request->validate([
+            'phone' => ['required', 'string'], // Замените 'email' на 'phone', если вход по телефону
+            // 'email' => ['required', 'string', 'email'],
+            'password' => ['required', 'string'],
+        ], $messages);
+
+        // Нормализация телефона (если вход по телефону)
+        $cleanedPhoneInput = preg_replace('/[^0-9]/', '', $request->phone);
+        if (strlen($cleanedPhoneInput) === 11 && $cleanedPhoneInput[0] === '8') {
+            $cleanedPhoneInput = '7' . substr($cleanedPhoneInput, 1);
+        }
+        $phoneToAuth = '+7' . substr($cleanedPhoneInput, -10);
+
+        // Попытка аутентификации
+        if (!Auth::attempt(['phone' => $phoneToAuth, 'password' => $request->password], $request->boolean('remember'))) {
+            // Если вход по email:
+            // if (!Auth::attempt($request->only('email', 'password'), $request->boolean('remember'))) {
+            // Управление Rate Limiting (если используете)
+            // RateLimiter::hit($this->throttleKey($request));
+// dd(
+//     app()->getLocale(), // Текущая локаль
+//     app('translator')->get('auth.failed'), // Как переводится ключ
+//     \Illuminate\Support\Facades\Lang::has('auth.failed'), // Есть ли ключ в текущей локали?
+//     \Illuminate\Support\Facades\Lang::get('auth.failed', [], 'ru'), // Принудительно получить из 'ru'
+//     \Illuminate\Support\Facades\Lang::get('auth.failed', [], 'en')  // Принудительно получить из 'en'
+// );
             throw ValidationException::withMessages([
-                // Ключ 'email' используется, чтобы ошибка отобразилась под полем email,
-                // но можно использовать и общий ключ, например 'credentials'
-                'phone' => __('auth.failed'), // Используем строку из lang/en/auth.php
+                'phone' => __('auth.failed'), // Или 'email' => __('auth.failed'),
             ]);
         }
 
-        // 3. Регенерация сессии для безопасности
+        // RateLimiter::clear($this->throttleKey($request)); // Если используете
+
         $request->session()->regenerate();
 
-        // 4. Редирект после успешного входа
-        // redirect()->intended() попытается перенаправить на страницу,
-        // которую пользователь хотел посетить до редиректа на логин,
-        // или на указанный URL по умолчанию (например, '/dashboard')
-        return redirect()->intended('/profile'); // <-- Замените '/dashboard' на ваш URL после логина
+        return redirect()->intended(RouteServiceProvider::HOME);
     }
 
     /**

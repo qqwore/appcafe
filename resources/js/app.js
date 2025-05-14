@@ -1,6 +1,7 @@
 import { createApp, h } from 'vue'
 import { createInertiaApp } from '@inertiajs/vue3' // <-- ИСПОЛЬЗУЙТЕ ЭТОТ ИМПОРТ
 import { InertiaProgress } from '@inertiajs/progress'
+import './bootstrap';
 
 // --- Импорты Ziggy и CSS ---
 import { ZiggyVue } from 'ziggy-js';

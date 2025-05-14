@@ -61,8 +61,7 @@ Route::middleware(['auth'])->group(function () {
     // Профиль пользователя
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
     // Сюда можно добавить маршруты для обновления профиля:
-    // Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
-    // Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
     // Выход из системы
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
